@@ -1,0 +1,62 @@
+"""Environment-driven project settings."""
+
+import os
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ENV_FILE = PROJECT_ROOT / ".env"
+
+
+class Settings(BaseSettings):
+    """Centralized settings loaded from .env."""
+
+    # API KEYS
+    groq_api_key: str = ""
+    tavily_api_key: str = ""
+
+    # LANGCHAIN / LANGSMITH
+    langchain_api_key: str = ""
+    langchain_project: str = "TripPlanner"
+    langchain_tracing: bool = True
+    langchain_endpoint: str = "https://api.smith.langchain.com"
+
+    # MODELS
+    groq_text_model: str = "llama-3.3-70b-versatile"
+    groq_transcription_model: str = "whisper-large-v3"
+
+    # MCP SERVERS
+    kiwi_mcp_server_url: str = "https://mcp.kiwi.com"
+    gribstream_mcp_server_url: str = "https://gribstream.com/mcp"
+    agentorist_mcp_server_url: str = "https://mcp.agentorist.com/mcp"
+
+    # DIRECTORIES
+    recordings_dir: str = "recordings"
+    outputs_dir: str = "outputs"
+    logs_dir: str = "logs"
+
+    model_config = SettingsConfigDict(
+        env_file=ENV_FILE,
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+
+@lru_cache(maxsize=None)
+def get_settings() -> Settings:
+    """Return cached settings instance."""
+    settings = Settings()
+
+    os.environ["LANGCHAIN_TRACING_V2"] = str(settings.langchain_tracing).lower()
+    os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
+    os.environ["LANGCHAIN_ENDPOINT"] = settings.langchain_endpoint
+
+    if settings.langchain_api_key:
+        os.environ["LANGCHAIN_API_KEY"] = settings.langchain_api_key
+
+    return settings
+
+
+settings = get_settings()

@@ -1,0 +1,76 @@
+# Python
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+
+.venv/
+venv/
+env/
+
+# Environment Variables
+
+.env
+.env.*
+
+# Jupyter
+
+.ipynb_checkpoints/
+
+# Build
+
+build/
+dist/
+*.egg-info/
+
+# Logs
+
+logs/
+*.log
+
+# Outputs
+
+outputs/
+
+# Recordings
+
+recordings/
+
+# Audio Files
+
+*.wav
+*.mp3
+*.m4a
+
+# Data Exports
+
+*.csv
+*.xlsx
+*.parquet
+
+# Coverage
+
+.coverage
+htmlcov/
+.pytest_cache/
+
+# VS Code
+
+.vscode/
+
+# LangSmith / LangGraph
+
+.langgraph_api/
+.langsmith/
+
+# OS Files
+
+.DS_Store
+Thumbs.db
+
+# Temporary Files
+
+*.tmp
+*.temp
