@@ -1,20 +1,37 @@
-"""Typed state shared by LangGraph nodes."""
+"""LangGraph-compatible state definition for the trip planner workflow."""
 
-from typing import Any, TypedDict
+from typing import TypedDict
 
 
-class TripState(TypedDict, total=False):
-    """Trip-planning state passed between agents."""
+class TripState(TypedDict):
+    """Shared state passed between LangGraph nodes."""
 
-    origin: str
+    # Destination city or area for the trip.
     destination: str
-    start_date: str
-    end_date: str
-    budget: str
-    travelers: int
-    coordinator_notes: str
-    flights: Any
-    hotels: Any
-    weather: Any
-    search_results: list[dict[str, Any]]
+
+    # Venue, landmark, hotel, or event location relevant to the trip.
+    venue: str
+
+    # Date of the event or primary trip activity.
+    event_date: str
+
+    # Flight search results or selected flight information.
+    flight_details: dict
+
+    # Hotel search results or selected hotel information.
+    hotel_details: dict
+
+    # Weather forecast and conditions for the destination/date.
+    weather_details: dict
+
+    # Web search results and destination research context.
+    search_results: dict
+
+    # Generated trip itinerary text.
     itinerary: str
+
+    # Current workflow status such as pending, running, completed, or failed.
+    status: str
+
+    # Error messages collected during graph execution.
+    errors: list[str]
