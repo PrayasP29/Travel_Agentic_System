@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Multi-Agent Trip Planner
 
 A minimal, hackathon-friendly Python project for a LangGraph-based trip planner that runs first from Jupyter Notebook.
@@ -46,3 +47,6 @@ AGENTORIST_MCP_SERVER_URL=your_agentorist_hotel_mcp_server_url_here
 ## Notes
 
 The MCP tool files are intentionally placeholders. Wire each wrapper to your MCP client once the corresponding servers are available in your environment.
+=======
+# Tarvel_Agent
+>>>>>>> 97ee4fb5d940db696f2087283323342e88af59c1
