@@ -1,16 +1,40 @@
-"""Coordinator agent for routing trip-planning work through LangGraph."""
+"""Coordinator agent for validating and initializing trip-planner state."""
 
-from langchain_core.messages import HumanMessage
+from langchain.agents import create_agent
 
 from config.models import get_text_llm
 
 
 def coordinator_agent(state: dict) -> dict:
-    """Read the request and decide which specialist agents should help."""
+    """Validate required inputs and initialize missing state fields."""
     llm = get_text_llm()
-    prompt = (
-        "You are the coordinator for a multi-agent trip planner. "
-        "Summarize the user's travel request and identify required steps."
+    create_agent(
+        model=llm,
+        tools=[],
+        system_prompt=(
+            "You are the coordinator for a trip planner. "
+            "Validate required inputs and prepare state for specialist agents."
+        ),
     )
-    response = llm.invoke([HumanMessage(content=f"{prompt}\n\nState: {state}")])
-    return {"coordinator_notes": response.content}
+
+    updated_state = dict(state)
+    errors = list(updated_state.get("errors") or [])
+
+    if not updated_state.get("destination"):
+        errors.append("destination is required.")
+
+    if not updated_state.get("venue"):
+        errors.append("venue is required.")
+
+    if not updated_state.get("event_date"):
+        errors.append("event_date is required.")
+
+    updated_state.setdefault("flight_details", {})
+    updated_state.setdefault("hotel_details", {})
+    updated_state.setdefault("weather_details", {})
+    updated_state.setdefault("search_results", {})
+    updated_state.setdefault("itinerary", "")
+    updated_state["errors"] = errors
+    updated_state["status"] = "processing"
+
+    return updated_state

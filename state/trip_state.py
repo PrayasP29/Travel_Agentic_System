@@ -18,6 +18,12 @@ class TripState(TypedDict):
     # Flight search results or selected flight information.
     flight_details: dict
 
+    # Flight agent reasoning and summary notes.
+    flight_notes: str
+
+    # Flight agent execution status.
+    flight_status: str
+
     # Hotel search results or selected hotel information.
     hotel_details: dict
 
@@ -29,6 +35,9 @@ class TripState(TypedDict):
 
     # Generated trip itinerary text.
     itinerary: str
+
+    # Supervisor review summary for downstream agents and checkpoint memory.
+    supervisor_notes: str
 
     # Current workflow status such as pending, running, completed, or failed.
     status: str

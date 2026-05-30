@@ -1,33 +1,33 @@
-"""Dummy flight-search tool for the first notebook development phase."""
+"""Placeholder flight search tool for future MCP integration."""
 
 from config.settings import settings
 
 
 def search_flights(
-    origin: str | None,
-    destination: str | None,
-    start_date: str | None,
-    end_date: str | None,
+    origin: str | None = None,
+    destination: str | None = None,
+    event_date: str | None = None,
     travelers: int = 1,
 ) -> dict:
-    """Return deterministic flight data until Kiwi MCP is wired in."""
+    """Return dummy flight details until Kiwi MCP is connected."""
+    # TODO: Add Kiwi MCP client call here when MCP integration is enabled.
     return {
-        "provider": "kiwi-flight-search-mcp",
-        "server_url": settings.kiwi_mcp_server_url,
+        "provider": "kiwi",
+        "mcp_server_url": settings.kiwi_mcp_server_url,
         "status": "dummy",
         "query": {
             "origin": origin,
             "destination": destination,
-            "departure_date": start_date,
-            "return_date": end_date,
+            "event_date": event_date,
             "travelers": travelers,
         },
-        "options": [
+        "flight_options": [
             {
                 "airline": "Demo Air",
+                "flight_number": "DA-101",
+                "departure": "TBD",
+                "arrival": "TBD",
                 "price": "TBD",
-                "duration": "TBD",
-                "notes": "Replace with Kiwi MCP results later.",
             }
         ],
     }

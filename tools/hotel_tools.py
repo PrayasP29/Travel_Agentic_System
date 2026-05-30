@@ -1,33 +1,32 @@
-"""Dummy hotel-search tool for the first notebook development phase."""
+"""Placeholder hotel search tool for future MCP integration."""
 
 from config.settings import settings
 
 
 def search_hotels(
-    destination: str | None,
-    check_in: str | None,
-    check_out: str | None,
+    destination: str | None = None,
+    venue: str | None = None,
+    event_date: str | None = None,
     travelers: int = 1,
-    budget: str | None = None,
 ) -> dict:
-    """Return deterministic hotel data until Agentorist MCP is wired in."""
+    """Return dummy hotel details until Agentorist MCP is connected."""
+    # TODO: Add Agentorist MCP client call here when MCP integration is enabled.
     return {
-        "provider": "agentorist-hotel-mcp",
-        "server_url": settings.agentorist_mcp_server_url,
+        "provider": "agentorist",
+        "mcp_server_url": settings.agentorist_mcp_server_url,
         "status": "dummy",
         "query": {
             "destination": destination,
-            "check_in": check_in,
-            "check_out": check_out,
+            "venue": venue,
+            "event_date": event_date,
             "travelers": travelers,
-            "budget": budget,
         },
-        "options": [
+        "hotel_options": [
             {
                 "name": "Demo Stay",
+                "address": "Near event venue",
                 "price_per_night": "TBD",
-                "area": destination or "TBD",
-                "notes": "Replace with Agentorist MCP results later.",
+                "rating": "TBD",
             }
         ],
     }

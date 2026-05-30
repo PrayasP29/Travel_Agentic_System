@@ -1,26 +1,25 @@
-"""Dummy weather tool for the first notebook development phase."""
+"""Placeholder weather tool for future MCP integration."""
 
 from config.settings import settings
 
 
-def get_weather_forecast(
+def get_weather(
     destination: str | None,
-    start_date: str | None,
-    end_date: str | None,
+    event_date: str | None,
 ) -> dict:
-    """Return deterministic weather data until Gribstream MCP is wired in."""
+    """Return dummy weather details until Gribstream MCP is connected."""
+    # TODO: Add Gribstream MCP client call here when MCP integration is enabled.
     return {
-        "provider": "gribstream-weather-mcp",
-        "server_url": settings.gribstream_mcp_server_url,
+        "provider": "gribstream",
+        "mcp_server_url": settings.gribstream_mcp_server_url,
         "status": "dummy",
         "query": {
             "destination": destination,
-            "start_date": start_date,
-            "end_date": end_date,
+            "event_date": event_date,
         },
-        "forecast": {
-            "summary": "Weather placeholder",
-            "packing_tip": "Check live conditions before travel.",
-            "notes": "Replace with Gribstream MCP results later.",
+        "weather": {
+            "summary": "Weather details unavailable in placeholder mode.",
+            "temperature": "TBD",
+            "conditions": "TBD",
         },
     }
