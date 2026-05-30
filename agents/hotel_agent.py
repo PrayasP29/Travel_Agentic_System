@@ -1,4 +1,4 @@
-"""Hotel agent for finding and summarizing hotel options."""
+"""Hotel agent for summarizing local discovery results."""
 
 from langchain.agents import create_agent
 
@@ -15,7 +15,7 @@ def _last_message_content(response: dict) -> str:
 
 
 def hotel_agent(state: dict) -> dict:
-    """Use a LangChain agent to decide whether hotel search is needed."""
+    """Use a LangChain agent to decide whether local discovery is needed."""
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -31,17 +31,19 @@ def hotel_agent(state: dict) -> dict:
             model=get_text_llm(),
             tools=[search_hotels],
             system_prompt=(
-                "You are a hotel planning agent. Determine hotel requirements, "
-                "decide whether hotel search is needed, call the registered "
-                "search_hotels tool when appropriate, interpret results, and "
-                "provide concise hotel recommendations."
+                "You are a hotel planning agent. The search_hotels tool currently "
+                "returns local discovery results (restaurants and nearby places) "
+                "rather than hotel inventory. Decide when the tool should be "
+                "called, interpret the local results, and provide concise "
+                "recommendations."
             ),
         )
 
         prompt = (
-            "Review this hotel planning state. Decide whether the hotel search "
-            "tool is needed. If needed, call search_hotels. Then summarize the "
-            "hotel options, recommendations, and reasoning.\n\n"
+            "Review this trip-planning state. Decide whether the local discovery "
+            "tool should be used (search_hotels). If needed, call search_hotels "
+            "with the destination only. Then summarize nearby restaurants and "
+            "local spots, along with concise recommendations.\n\n"
             f"destination: {destination}\n"
             f"venue: {venue}\n"
             f"event_date: {event_date}\n"
@@ -55,13 +57,13 @@ def hotel_agent(state: dict) -> dict:
 
         updated_state["hotel_details"] = response
         updated_state["hotel_notes"] = (
-            hotel_notes or "Hotel agent completed without additional notes."
+            hotel_notes or "Local discovery summary completed without additional notes."
         )
         updated_state["hotel_status"] = "completed"
     except Exception as exc:
         errors.append(f"hotel_agent failed: {exc}")
         updated_state["hotel_details"] = updated_state.get("hotel_details", {})
-        updated_state["hotel_notes"] = "Hotel search failed."
+        updated_state["hotel_notes"] = "Local discovery failed."
         updated_state["hotel_status"] = "failed"
 
     updated_state["errors"] = errors
