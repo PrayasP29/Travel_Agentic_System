@@ -51,6 +51,9 @@ class TripPlannerState(TypedDict):
     # Generated trip itinerary text.
     itinerary: str
 
+    # Final user-facing formatted travel report.
+    final_report: str
+
     # Itinerary generation status.
     itinerary_status: str
 
