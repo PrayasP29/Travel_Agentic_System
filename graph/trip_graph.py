@@ -8,6 +8,7 @@ from agents.itinerary_agent import itinerary_agent
 from agents.search_agent import search_agent
 from agents.supervisor_agent import supervisor_agent
 from agents.weather_agent import weather_agent
+from memory.sqlite_checkpoint import get_checkpointer
 from state.trip_state import TripPlannerState
 
 
@@ -37,4 +38,5 @@ def build_trip_graph():
     graph.add_edge("search_agent", "itinerary_agent")
     graph.add_edge("itinerary_agent", END)
 
-    return graph.compile()
+    checkpointer = get_checkpointer()
+    return graph.compile(checkpointer=checkpointer)
