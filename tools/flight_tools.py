@@ -61,24 +61,36 @@ def _serialize_tool_result(result: Any) -> dict:
     return payload
 
 
-def _format_exception_details(exc: BaseException, indent: int = 0) -> list[str]:
+def _flatten_exceptions(exc: BaseException) -> list[BaseException]:
+    """Flatten nested ExceptionGroup-style exceptions into leaf errors."""
+    nested = getattr(exc, "exceptions", None)
+    if not nested:
+        return [exc]
+
+    leaves: list[BaseException] = []
+    for child in nested:
+        leaves.extend(_flatten_exceptions(child))
+    return leaves
+
+
+def _format_exception_details(exc: BaseException) -> list[str]:
     """Return detailed exception info including nested ExceptionGroup details."""
-    prefix = "  " * indent
     lines = [
-        f"{prefix}Exception type: {type(exc).__name__}",
-        f"{prefix}Exception message: {exc}",
-        f"{prefix}Traceback:",
+        "ROOT ERROR:",
+        f"{type(exc).__name__}",
+        f"{exc}",
+        "",
+        "TRACEBACK:",
     ]
     tb_lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
-    for line in tb_lines:
-        lines.append(f"{prefix}{line.rstrip()}")
+    lines.extend(line.rstrip() for line in tb_lines)
 
-    nested = getattr(exc, "exceptions", None)
-    if nested:
-        lines.append(f"{prefix}Nested exceptions ({len(nested)}):")
-        for index, child in enumerate(nested, start=1):
-            lines.append(f"{prefix}Nested exception {index}:")
-            lines.extend(_format_exception_details(child, indent + 1))
+    leaves = _flatten_exceptions(exc)
+    if len(leaves) > 1 or leaves[0] is not exc:
+        lines.append("")
+        lines.append("NESTED:")
+        for index, child in enumerate(leaves, start=1):
+            lines.append(f"{index}. {type(child).__name__}: {child}")
 
     return lines
 
@@ -111,12 +123,6 @@ async def _list_tools_and_call(
 
         schema_properties = tool_schema.get("properties") or {}
         adjusted = dict(payload)
-
-        if "travelers" in adjusted:
-            if "adults" in schema_properties and "travelers" not in schema_properties:
-                adjusted["adults"] = adjusted.pop("travelers")
-            elif "passengers" in schema_properties and "travelers" not in schema_properties:
-                adjusted["passengers"] = adjusted.pop("travelers")
 
         if schema_properties:
             adjusted = {key: value for key, value in adjusted.items() if key in schema_properties}
@@ -152,7 +158,10 @@ async def _list_tools_and_call(
                 )
                 tool_schema = _get_tool_schema(tool)
                 prepared_payload = _prepare_payload(tool_schema)
-                print(f"Kiwi MCP payload for {TOOL_NAME}: {prepared_payload}")
+                print("TOOL SCHEMA:")
+                print(tool_schema)
+                print("FINAL PAYLOAD:")
+                print(prepared_payload)
                 result = await asyncio.wait_for(
                     session.call_tool(TOOL_NAME, prepared_payload), timeout=timeout_seconds
                 )
@@ -172,7 +181,10 @@ async def _list_tools_and_call(
             )
             tool_schema = _get_tool_schema(tool)
             prepared_payload = _prepare_payload(tool_schema)
-            print(f"Kiwi MCP payload for {TOOL_NAME}: {prepared_payload}")
+            print("TOOL SCHEMA:")
+            print(tool_schema)
+            print("FINAL PAYLOAD:")
+            print(prepared_payload)
             result = await asyncio.wait_for(
                 session.call_tool(TOOL_NAME, prepared_payload), timeout=timeout_seconds
             )
@@ -228,9 +240,6 @@ def search_flights(
         "flyFrom": origin,
         "flyTo": destination,
         "departureDate": departure_date,
-        "curr": "INR",
-        "sortBy": "price",
-        "travelers": travelers,
     }
 
     try:

@@ -29,7 +29,8 @@ class Settings(BaseSettings):
 
     # MCP SERVERS
     kiwi_mcp_server_url: str = "https://mcp.kiwi.com"
-    gribstream_mcp_server_url: str = "https://gribstream.com/mcp"
+    weather_provider: str = "livedatalink" 
+    weather_mcp_server_url: str = "https://livedatalink.ai/mcp"
     agentorist_mcp_server_url: str = "https://mcp.agentorist.com/mcp"
 
     # DIRECTORIES

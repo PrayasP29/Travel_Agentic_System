@@ -3,11 +3,17 @@
 from typing import TypedDict
 
 
-class TripState(TypedDict):
+class TripPlannerState(TypedDict):
     """Shared state passed between LangGraph nodes."""
+
+    # Origin city or airport.
+    origin: str
 
     # Destination city or area for the trip.
     destination: str
+
+    # Number of travelers.
+    travelers: int
 
     # Venue, landmark, hotel, or event location relevant to the trip.
     venue: str
@@ -27,14 +33,26 @@ class TripState(TypedDict):
     # Hotel search results or selected hotel information.
     hotel_details: dict
 
+    # Hotel agent execution status.
+    hotel_status: str
+
     # Weather forecast and conditions for the destination/date.
     weather_details: dict
+
+    # Weather agent execution status.
+    weather_status: str
 
     # Web search results and destination research context.
     search_results: dict
 
+    # Search agent execution status.
+    search_status: str
+
     # Generated trip itinerary text.
     itinerary: str
+
+    # Itinerary generation status.
+    itinerary_status: str
 
     # Supervisor review summary for downstream agents and checkpoint memory.
     supervisor_notes: str
@@ -44,3 +62,6 @@ class TripState(TypedDict):
 
     # Error messages collected during graph execution.
     errors: list[str]
+
+
+TripState = TripPlannerState

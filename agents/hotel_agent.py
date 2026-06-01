@@ -27,35 +27,42 @@ def hotel_agent(state: dict) -> dict:
         budget = updated_state.get("budget")
         hotel_preferences = updated_state.get("hotel_preferences")
 
+        hotel_result = search_hotels(destination=destination)
+        updated_state["hotel_details"] = hotel_result
+        if hotel_result.get("status") != "success":
+            updated_state["hotel_status"] = "failed"
+            updated_state["hotel_notes"] = (
+                "Local discovery failed: "
+                f"{hotel_result.get('error', 'Unknown error')}"
+            )
+            updated_state["errors"] = errors
+            return updated_state
+
         agent = create_agent(
             model=get_text_llm(),
-            tools=[search_hotels],
+            tools=[],
             system_prompt=(
                 "You are a hotel planning agent. The search_hotels tool currently "
                 "returns local discovery results (restaurants and nearby places) "
-                "rather than hotel inventory. Decide when the tool should be "
-                "called, interpret the local results, and provide concise "
-                "recommendations."
+                "rather than hotel inventory. Summarize the local results and "
+                "provide concise recommendations."
             ),
         )
 
         prompt = (
-            "Review this trip-planning state. Decide whether the local discovery "
-            "tool should be used (search_hotels). If needed, call search_hotels "
-            "with the destination only. Then summarize nearby restaurants and "
-            "local spots, along with concise recommendations.\n\n"
+            "Summarize the local discovery results and provide recommendations.\n\n"
             f"destination: {destination}\n"
             f"venue: {venue}\n"
             f"event_date: {event_date}\n"
             f"travelers: {travelers}\n"
             f"budget: {budget}\n"
-            f"hotel_preferences: {hotel_preferences}"
+            f"hotel_preferences: {hotel_preferences}\n\n"
+            f"local_results: {hotel_result}"
         )
 
         response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
         hotel_notes = _last_message_content(response)
 
-        updated_state["hotel_details"] = response
         updated_state["hotel_notes"] = (
             hotel_notes or "Local discovery summary completed without additional notes."
         )

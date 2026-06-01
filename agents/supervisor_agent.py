@@ -2,11 +2,6 @@
 
 from langchain.agents import create_agent
 
-from agents.flight_agent import flight_agent
-from agents.hotel_agent import hotel_agent
-from agents.itinerary_agent import itinerary_agent
-from agents.search_agent import search_agent
-from agents.weather_agent import weather_agent
 from config.models import get_text_llm
 
 
@@ -30,15 +25,22 @@ def _build_execution_plan(state: dict) -> dict:
 
 def supervisor_agent(state: dict) -> dict:
     """Orchestrate specialist agents and deliver the final trip plan."""
+    print("\n" + "=" * 80)
+    print("SUPERVISOR RECEIVED STATE")
+    print("=" * 80)
+    print(state)
+
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
+    validation_errors: list[str] = []
     if not updated_state.get("destination"):
-        errors.append("destination is required.")
+        validation_errors.append("destination is required.")
     if not updated_state.get("venue"):
-        errors.append("venue is required.")
+        validation_errors.append("venue is required.")
     if not updated_state.get("event_date"):
-        errors.append("event_date is required.")
+        validation_errors.append("event_date is required.")
+    errors.extend(validation_errors)
 
     updated_state.setdefault("flight_details", {})
     updated_state.setdefault("hotel_details", {})
@@ -77,25 +79,15 @@ def supervisor_agent(state: dict) -> dict:
     except Exception as exc:
         errors.append(f"supervisor planning failed: {exc}")
         updated_state["supervisor_notes"] = "Supervisor fallback plan created."
+        updated_state["status"] = "degraded"
 
     updated_state["errors"] = errors
-    if errors:
+    if validation_errors:
         updated_state["status"] = "blocked"
+        print("\nSUPERVISOR RETURNING STATE")
+        print(updated_state)
         return updated_state
 
-    execution_plan = updated_state.get("execution_plan", {})
-    if execution_plan.get("run_flight_agent"):
-        updated_state = flight_agent(updated_state)
-    if execution_plan.get("run_hotel_agent"):
-        updated_state = hotel_agent(updated_state)
-    if execution_plan.get("run_weather_agent"):
-        updated_state = weather_agent(updated_state)
-    if execution_plan.get("run_search_agent"):
-        updated_state = search_agent(updated_state)
-
-    updated_state = itinerary_agent(updated_state)
-    updated_state["status"] = (
-        "completed" if updated_state.get("itinerary_status") == "completed" else "failed"
-    )
-
+    print("\nSUPERVISOR RETURNING STATE")
+    print(updated_state)
     return updated_state

@@ -23,32 +23,21 @@ def weather_agent(state: dict) -> dict:
         destination = updated_state.get("destination")
         event_date = updated_state.get("event_date")
 
-        agent = create_agent(
-            model=get_text_llm(),
-            tools=[get_weather],
-            system_prompt=(
-                "You are a weather planning agent. Decide whether weather lookup "
-                "is necessary, call the registered get_weather tool when needed, "
-                "analyze the forecast, and provide concise recommendations."
-            ),
-        )
+        weather_result = get_weather(destination=destination, event_date=event_date)
+        updated_state["weather_details"] = weather_result
+        if weather_result.get("status") != "success":
+            updated_state["weather_status"] = "failed"
+            updated_state["weather_notes"] = (
+                "Weather retrieval failed: "
+                f"{weather_result.get('error', 'Unknown error')}"
+            )
+            updated_state["errors"] = errors
+            return updated_state
 
-        prompt = (
-            "Review this trip-planning state. Decide whether the weather lookup "
-            "tool is needed. If needed, call get_weather. Then summarize the "
-            "forecast, recommendations, and reasoning.\n\n"
-            f"destination: {destination}\n"
-            f"event_date: {event_date}"
-        )
-
-        response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
-        weather_notes = _last_message_content(response)
-
-        updated_state["weather_details"] = response
-        updated_state["weather_notes"] = (
-            weather_notes or "Weather agent completed without additional notes."
-        )
+        updated_state["weather_notes"] = "Weather data retrieved successfully."
         updated_state["weather_status"] = "completed"
+        updated_state["errors"] = errors
+        return updated_state
     except Exception as exc:
         errors.append(f"weather_agent failed: {exc}")
         updated_state["weather_details"] = updated_state.get("weather_details", {})

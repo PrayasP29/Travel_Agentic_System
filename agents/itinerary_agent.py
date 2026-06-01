@@ -22,6 +22,11 @@ def itinerary_agent(state: dict) -> dict:
         destination = updated_state.get("destination")
         venue = updated_state.get("venue")
         event_date = updated_state.get("event_date")
+        supervisor_notes = updated_state.get("supervisor_notes")
+        flight_notes = updated_state.get("flight_notes")
+        hotel_notes = updated_state.get("hotel_notes")
+        weather_notes = updated_state.get("weather_notes")
+        search_notes = updated_state.get("search_notes")
 
         agent = create_agent(
             model=get_text_llm(),
@@ -35,20 +40,21 @@ def itinerary_agent(state: dict) -> dict:
         )
 
         prompt = (
-            "Use the provided state to draft a complete itinerary. "
-            "Summarize flight, hotel, weather, and search insights. "
+            "Draft a complete itinerary using the concise notes provided. "
             "Include event-day recommendations and return-trip guidance.\n\n"
-            f"destination: {destination}\n"
-            f"venue: {venue}\n"
-            f"event_date: {event_date}\n\n"
-            f"flight_details: {updated_state.get('flight_details')}\n"
-            f"hotel_details: {updated_state.get('hotel_details')}\n"
-            f"weather_details: {updated_state.get('weather_details')}\n"
-            f"search_results: {updated_state.get('search_results')}\n\n"
-            f"flight_notes: {updated_state.get('flight_notes')}\n"
-            f"hotel_notes: {updated_state.get('hotel_notes')}\n"
-            f"weather_notes: {updated_state.get('weather_notes')}\n"
-            f"search_notes: {updated_state.get('search_notes')}"
+            f"Destination: {destination}\n"
+            f"Venue: {venue}\n"
+            f"Event Date: {event_date}\n\n"
+            "Supervisor Notes:\n"
+            f"{supervisor_notes}\n\n"
+            "Flight Notes:\n"
+            f"{flight_notes}\n\n"
+            "Hotel Notes:\n"
+            f"{hotel_notes}\n\n"
+            "Weather Notes:\n"
+            f"{weather_notes}\n\n"
+            "Search Notes:\n"
+            f"{search_notes}"
         )
 
         response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
@@ -59,11 +65,13 @@ def itinerary_agent(state: dict) -> dict:
             itinerary or "Itinerary agent completed without additional notes."
         )
         updated_state["itinerary_status"] = "completed"
+        updated_state["status"] = "completed"
     except Exception as exc:
         errors.append(f"itinerary_agent failed: {exc}")
         updated_state["itinerary"] = updated_state.get("itinerary", "")
         updated_state["itinerary_notes"] = "Itinerary generation failed."
         updated_state["itinerary_status"] = "failed"
+        updated_state["status"] = "failed"
 
     updated_state["errors"] = errors
     return updated_state
