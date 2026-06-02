@@ -33,17 +33,26 @@ class TripPlannerState(TypedDict):
     # Hotel search results or selected hotel information.
     hotel_details: dict
 
+    # Hotel agent reasoning and summary notes.
+    hotel_notes: str
+
     # Hotel agent execution status.
     hotel_status: str
 
     # Weather forecast and conditions for the destination/date.
     weather_details: dict
 
+    # Weather agent reasoning and summary notes.
+    weather_notes: str
+
     # Weather agent execution status.
     weather_status: str
 
     # Web search results and destination research context.
     search_results: dict
+
+    # Search agent reasoning and summary notes.
+    search_notes: str
 
     # Search agent execution status.
     search_status: str
@@ -65,6 +74,13 @@ class TripPlannerState(TypedDict):
 
     # Error messages collected during graph execution.
     errors: list[str]
+
+    # Booking and pricing state details
+    flight_booking_link: str
+    hotel_booking_links: list[str]
+    hotel_price_details: list[str]
+    recommended_flight_price: float
+    recommended_hotel_price: float
 
 
 TripState = TripPlannerState

@@ -1,0 +1,162 @@
+# Here's where things stand right now
+
+## Trip Summary
+- **Route:** Miami → New York
+- **Venue:** Madison Square Garden
+- **Event Date:** 2026-06-04
+
+## Flights
+### Recommended Flight
+#### Route:
+MIA → LGA (Miami → New York)
+
+#### Departure:
+2026-06-04T11:23:00.000
+
+#### Arrival:
+2026-06-04T17:48:00.000
+
+#### Price:
+144 EUR
+
+#### Booking Link:
+https://on.kiwi.com/sAyq6U
+
+**Book here:** https://on.kiwi.com/sAyq6U
+
+## Hotels
+Based on the provided MCP Hotel Results, I recommend the following hotels for your stay in New York, considering the venue proximity to Madison Square Garden and overall reputation:
+
+1. **Casablanca Hotel**: 
+   - Rating: 4.6
+   - Price Category: $$
+   - Address: 147 W 43rd St, New York, NY 10036
+   - Book: https://www.yelp.com/biz/casablanca-hotel-new-york-2?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+   This hotel offers a high rating and a relatively affordable price category, making it an excellent choice.
+
+2. **Renaissance New York Midtown Hotel**: 
+   - Rating: 4.0
+   - Price Category: $$
+   - Address: 218 West 35th Street, New York, NY 10001
+   - Book: https://www.yelp.com/biz/renaissance-new-york-midtown-hotel-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+   Its location and rating make it a suitable option for those attending an event at Madison Square Garden.
+
+3. **Motto by Hilton New York City Chelsea**: 
+   - Rating: 4.0
+   - Price Category: $$
+   - Address: 113 W 24th St, New York, NY 10001
+   - Book: https://www.yelp.com/biz/motto-by-hilton-new-york-city-chelsea-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+   This hotel is another option with a good balance of price and reputation.
+
+These recommendations prioritize hotels with available price categories and high ratings, ensuring a comfortable stay near Madison Square Garden.
+
+**Booking Links:**
+- https://www.yelp.com/biz/casablanca-hotel-new-york-2?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/park-hyatt-new-york-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/hotel-50-bowery-new-york-2?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/citizenm-new-york-times-square-hotel-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/the-mercer-hotel-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/the-wallace-new-york-3?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/1-hotel-central-park-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/arlo-nomad-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/the-fifth-avenue-hotel-new-york-2?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/the-hotel-chelsea-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/1-hotel-brooklyn-bridge-brooklyn?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/renaissance-new-york-midtown-hotel-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/the-st-regis-new-york-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/hampton-inn-brooklyn-downtown-brooklyn-2?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/kimpton-hotel-eventi-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/sanctuary-hotel-new-york-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/motto-by-hilton-new-york-city-chelsea-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/the-ludlow-new-york-city-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/library-hotel-by-library-hotel-collection-new-york?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+- https://www.yelp.com/biz/the-surrey-a-corinthia-hotel-new-york-2?adjust_creative=DzZmti2q5-VcwEdSD2XcyQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=DzZmti2q5-VcwEdSD2XcyQ
+
+## Weather
+**Weather Summary for New York on 2026-06-04:**
+
+Since the event date (2026-06-04) is beyond the 2-day forecast range provided, I will summarize the current forecast as representative weather and provide historical climate expectations for New York in June.
+
+**Current 2-Day Forecast:**
+- Conditions: Overcast
+- Temperature range: 49°F - 81°F (7°C - 27°C)
+- Rain chance: 2%
+
+**Historical Climate Expectations for New York in June:**
+June is a warm month in New York, with average highs around 77°F (25°C) and average lows around 63°F (17°C). The rain chance is moderate, with an average of 12 rainy days throughout the month. Expect partly cloudy to sunny skies with occasional thunderstorms.
+
+**Air Quality:**
+The current air quality in New York is Moderate, with an AQI (US) of 58. The pollutant levels are:
+- PM2.5: 19.9 µg/m³
+- PM10: 24.4 µg/m³
+- Ozone: 65.0 µg/m³
+- NO₂: 18.3 µg/m³
+- SO₂: 2.1 µg/m³
+- CO: 193.0 µg/m³
+
+Please note that air quality can change rapidly and may vary by location within the city. It's always a good idea to check current conditions before your trip.
+
+## Local Highlights
+## Top Attractions
+Near Madison Square Garden, some notable places to visit include:
+- Mustang Harry's: a popular bar and restaurant
+- The High Line: an elevated park built on an old rail line
+- Hudson Yards: a new neighborhood with shopping, dining, and entertainment options
+
+## Recommended Restaurants
+Some highly-rated local dining options near Madison Square Garden are:
+- Mustang Harry's: known for its delicious food and drinks
+- Carmine's Italian Restaurant: an option for Italian cuisine
+
+## Local Transportation
+Practical transit tips for getting around near Madison Square Garden include:
+- Subway: many lines stop at 34th St, right under MSG
+- Train: Penn Station is located below MSG, providing easy access to trains
+- Walking: a viable option, given the location's proximity to various attractions
+- Ridesharing: services like Lyft are available for convenient transportation
+
+## Suggested Itinerary
+**Complete Travel Itinerary**
+
+**Destination:** New York
+**Venue:** Madison Square Garden
+**Event Date:** 2026-06-04
+
+**Arrival Recommendations:**
+- Fly from Miami (MIA) to New York (LGA) on 2026-06-04 at 11:23:00, arriving at 17:48:00.
+- Book your flight at https://on.kiwi.com/sAyq6U for 144 EUR.
+
+**Hotel Check-in Suggestions:**
+- Choose from one of the recommended hotels:
+  1. **Casablanca Hotel**: 4.6 rating, $$ price category, 147 W 43rd St, New York, NY 10036. Book at https://www.yelp.com/biz/casablanca-hotel-new-york-2.
+  2. **Renaissance New York Midtown Hotel**: 4.0 rating, $$ price category, 218 West 35th Street, New York, NY 10001. Book at https://www.yelp.com/biz/renaissance-new-york-midtown-hotel-new-york.
+  3. **Motto by Hilton New York City Chelsea**: 4.0 rating, $$ price category, 113 W 24th St, New York, NY 10001. Book at https://www.yelp.com/biz/motto-by-hilton-new-york-city-chelsea-new-york.
+
+**Event-Day Guidance:**
+- Attend your event at Madison Square Garden on 2026-06-04.
+- Plan for warm weather with average highs around 77°F (25°C) and average lows around 63°F (17°C).
+
+**Local Highlights:**
+- Visit **The High Line**, an elevated park built on an old rail line.
+- Explore **Hudson Yards**, a new neighborhood with shopping, dining, and entertainment options.
+- Stop by **Mustang Harry's**, a popular bar and restaurant.
+
+**Dining Recommendations:**
+- **Mustang Harry's**: known for its delicious food and drinks.
+- **Carmine's Italian Restaurant**: an option for Italian cuisine.
+
+**Local Transportation:**
+- Use the **Subway**: many lines stop at 34th St, right under MSG.
+- Take the **Train**: Penn Station is located below MSG, providing easy access to trains.
+- **Walk**: a viable option, given the location's proximity to various attractions.
+- Use **Ridesharing** services like Lyft for convenient transportation.
+
+**Return-Trip Planning:**
+- Book your return flight from New York (LGA) to Miami (MIA) after the event.
+- Check the weather forecast before your return trip to plan accordingly.
+
+## Next Steps
+- Confirm and book your flight
+- Confirm and book your hotel
+- Review the weather forecast closer to the event date
+- Follow the suggested itinerary on arrival

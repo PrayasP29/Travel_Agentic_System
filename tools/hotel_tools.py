@@ -15,6 +15,7 @@ from config.settings import settings
 
 TOOL_NAME = "search"
 DEFAULT_TIMEOUT_SECONDS = 20
+DEBUG = False
 
 
 def _serialize_tool_result(result: Any) -> dict:
@@ -119,7 +120,8 @@ async def _list_tools_and_call(
                 )
                 tool_schema = _get_tool_schema(tool)
                 prepared_payload = _prepare_payload(tool_schema)
-                print(f"Agentorist MCP payload for {TOOL_NAME}: {prepared_payload}")
+                if DEBUG:
+                    print(f"Agentorist MCP payload for {TOOL_NAME}: {prepared_payload}")
                 result = await asyncio.wait_for(
                     session.call_tool(TOOL_NAME, prepared_payload),
                     timeout=timeout_seconds,
@@ -138,7 +140,8 @@ async def _list_tools_and_call(
             tool = next(tool for tool in tools.tools if _get_tool_name(tool) == TOOL_NAME)
             tool_schema = _get_tool_schema(tool)
             prepared_payload = _prepare_payload(tool_schema)
-            print(f"Agentorist MCP payload for {TOOL_NAME}: {prepared_payload}")
+            if DEBUG:
+                print(f"Agentorist MCP payload for {TOOL_NAME}: {prepared_payload}")
             result = await asyncio.wait_for(
                 session.call_tool(TOOL_NAME, prepared_payload),
                 timeout=timeout_seconds,
@@ -224,7 +227,7 @@ def _run_search(payload: dict) -> dict:
                 "status": "error",
                 "provider": "agentorist",
                 "tool_used": TOOL_NAME,
-                "error": "No local discovery results returned.",
+                "error": "No hotel results returned.",
                 "data": structured_results,
             }
 
@@ -277,7 +280,7 @@ def search_local_places(destination: str, venue: str | None = None) -> dict:
 
 
 def search_hotels(destination: str) -> dict:
-    """Use local discovery to surface nearby restaurants for hotel planning."""
+    """Search for hotels using the Agentorist MCP hotel search."""
     if not destination:
         return {
             "status": "error",
@@ -289,9 +292,17 @@ def search_hotels(destination: str) -> dict:
 
     payload = {
         "vertical": "local",
-        "query": "restaurants",
+        "query": "best hotels",
         "location": destination,
         "agent_client": "TripPlanner",
     }
 
-    return _run_search(payload)
+    result = _run_search(payload)
+
+    # Print first returned hotel record for verification
+    if DEBUG and result.get("status") == "success":
+        results = result.get("data", {}).get("results", [])
+        if results:
+            print(f"[search_hotels] First hotel record: {results[0]}")
+
+    return result

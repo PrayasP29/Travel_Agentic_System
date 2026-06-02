@@ -51,4 +51,9 @@ def build_trip_state(parsed_request: Mapping[str, Any]) -> TripPlannerState:
         "venue": _normalize_text(parsed_request.get("venue")),
         "event_date": _normalize_text(parsed_request.get("event_date")),
         "errors": [],
+        "flight_booking_link": "",
+        "hotel_booking_links": [],
+        "hotel_price_details": [],
+        "recommended_flight_price": 0.0,
+        "recommended_hotel_price": 0.0,
     }

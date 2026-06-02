@@ -29,21 +29,36 @@ def search_agent(state: dict) -> dict:
             model=get_text_llm(),
             tools=[search_web],
             system_prompt=(
-                "You are a destination research agent. Generate useful search "
-                "queries, decide whether web search is needed, call the "
-                "registered search_web tool when appropriate, analyze results, "
-                "and recommend attractions and activities."
+                "You are a destination research specialist. "
+                "Your sole responsibility is destination research.\n\n"
+                "ONLY provide:\n"
+                "- Top attractions at the destination\n"
+                "- Recommended local restaurants\n"
+                "- Local transportation advice (subway, taxi, walking, etc.)\n\n"
+                "DO NOT provide:\n"
+                "- Itinerary planning or scheduling\n"
+                "- Hotel or accommodation recommendations\n"
+                "- Flight or airport guidance\n"
+                "- Booking or reservation advice\n"
+                "- Arrival, departure, or return-trip planning\n\n"
+                "If your search results contain travel logistics, flights, or hotels, "
+                "ignore that content entirely. Output only attractions, restaurants, "
+                "and local transit information."
             ),
         )
 
         prompt = (
-            "Review this trip-planning state. Decide whether the web search tool "
-            "is needed. If needed, call search_web with a high-signal query. "
-            "Then summarize attractions, activities, and recommendations.\n\n"
-            f"destination: {destination}\n"
-            f"venue: {venue}\n"
-            f"interests: {interests}\n"
-            f"trip_style: {trip_style}"
+            "Use search_web to research the following destination and venue.\n\n"
+            f"Destination: {destination}\n"
+            f"Venue: {venue}\n"
+            f"Interests: {interests}\n"
+            f"Trip Style: {trip_style}\n\n"
+            "Return a concise, structured summary covering exactly three sections:\n"
+            "1. Top Attractions — notable places to visit near the destination and venue\n"
+            "2. Recommended Restaurants — highly-rated local dining options\n"
+            "3. Local Transportation — practical transit tips for getting around\n\n"
+            "Do not include flights, hotels, itinerary planning, booking advice, "
+            "or any arrival/departure guidance."
         )
 
         response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})

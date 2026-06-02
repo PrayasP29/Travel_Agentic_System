@@ -16,6 +16,7 @@ from config.settings import settings
 
 TOOL_NAME = "search-flight"
 DEFAULT_TIMEOUT_SECONDS = 20
+DEBUG = False
 
 
 def _serialize_tool_result(result: Any) -> dict:
@@ -158,10 +159,11 @@ async def _list_tools_and_call(
                 )
                 tool_schema = _get_tool_schema(tool)
                 prepared_payload = _prepare_payload(tool_schema)
-                print("TOOL SCHEMA:")
-                print(tool_schema)
-                print("FINAL PAYLOAD:")
-                print(prepared_payload)
+                if DEBUG:
+                    print("TOOL SCHEMA:")
+                    print(tool_schema)
+                    print("FINAL PAYLOAD:")
+                    print(prepared_payload)
                 result = await asyncio.wait_for(
                     session.call_tool(TOOL_NAME, prepared_payload), timeout=timeout_seconds
                 )
@@ -181,10 +183,11 @@ async def _list_tools_and_call(
             )
             tool_schema = _get_tool_schema(tool)
             prepared_payload = _prepare_payload(tool_schema)
-            print("TOOL SCHEMA:")
-            print(tool_schema)
-            print("FINAL PAYLOAD:")
-            print(prepared_payload)
+            if DEBUG:
+                print("TOOL SCHEMA:")
+                print(tool_schema)
+                print("FINAL PAYLOAD:")
+                print(prepared_payload)
             result = await asyncio.wait_for(
                 session.call_tool(TOOL_NAME, prepared_payload), timeout=timeout_seconds
             )

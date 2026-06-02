@@ -81,9 +81,11 @@ def itinerary_agent(state: dict) -> dict:
         updated_state["itinerary_status"] = "completed"
 
         # Generate final formatted report
-        updated_state["final_report"] = report_formatter_agent(
-            updated_state
-        )
+        report_res = report_formatter_agent(updated_state)
+        if isinstance(report_res, dict):
+            updated_state["final_report"] = report_res.get("final_report", "")
+        else:
+            updated_state["final_report"] = str(report_res)
 
         updated_state["status"] = "completed"
 

@@ -1,75 +1,64 @@
-"""Final report formatter for trip planner output — LLM-powered."""
+"""Final report formatter for trip planner output — deterministic string assembly."""
 
-from core.llm import get_text_llm
-from core.agent_factory import create_agent
+from __future__ import annotations
 
 
 def report_formatter_agent(state: dict) -> dict:
-    """Generate a polished, LLM-powered final travel report."""
+    """Assemble a structured travel report directly from agent state.
 
-    origin        = state.get("origin", "Unknown")
-    destination   = state.get("destination", "Unknown")
-    event_date    = state.get("event_date", "Unknown")
-    venue         = state.get("venue", "Not specified")
+    No LLM is used. Content from specialist agents is preserved verbatim.
+    """
+    origin        = state.get("origin",        "Unknown")
+    destination   = state.get("destination",   "Unknown")
+    event_date    = state.get("event_date",     "Unknown")
+    venue         = state.get("venue",          "Not specified")
     flight_notes  = state.get("flight_notes",  "No flight information available.")
     hotel_notes   = state.get("hotel_notes",   "No hotel information available.")
     weather_notes = state.get("weather_notes", "No weather information available.")
     search_notes  = state.get("search_notes",  "No destination information available.")
     itinerary     = state.get("itinerary",     "No itinerary available.")
 
-    system_prompt = """You are a professional travel consultant.
-Create a polished travel briefing.
-Format exactly:
+    # Optional booking links — only rendered when present.
+    flight_booking_link = state.get("flight_booking_link", "")
+    hotel_booking_links = state.get("hotel_booking_links", [])
 
+    flights_section = flight_notes
+    if flight_booking_link:
+        flights_section += f"\n\n**Book here:** {flight_booking_link}"
+
+    hotels_section = hotel_notes
+    if hotel_booking_links:
+        links = "\n".join(f"- {link}" for link in hotel_booking_links)
+        hotels_section += f"\n\n**Booking Links:**\n{links}"
+
+    final_report = f"""\
 # Here's where things stand right now
 
 ## Trip Summary
+- **Route:** {origin} → {destination}
+- **Venue:** {venue}
+- **Event Date:** {event_date}
+
 ## Flights
+{flights_section}
+
 ## Hotels
+{hotels_section}
+
 ## Weather
-## Local Highlights
-## Event Information
-## Suggested Itinerary
-## Next Steps
-
-Rules:
-- Use markdown headings.
-- Use bullet points.
-- Never output JSON.
-- Never output raw state.
-- Never repeat debug information.
-- Summarize information professionally.
-- Keep the report concise and readable.
-- If information is missing, say "Information unavailable"."""
-
-    user_prompt = f"""Please generate a professional travel report using the following trip details:
-
-Origin: {origin}
-Destination: {destination}
-Event Venue: {venue}
-Event Date: {event_date}
-
-Flight Notes:
-{flight_notes}
-
-Hotel Notes:
-{hotel_notes}
-
-Weather Notes:
 {weather_notes}
 
-Destination / Search Notes:
+## Local Highlights
 {search_notes}
 
-Suggested Itinerary:
+## Suggested Itinerary
 {itinerary}
 
-Return only the formatted travel report. Do not include any JSON, raw data, or debug output."""
-
-    llm   = get_text_llm()
-    agent = create_agent(llm=llm, system_prompt=system_prompt)
-
-    response    = agent.invoke({"messages": [{"role": "user", "content": user_prompt}]})
-    final_report = response["messages"][-1].content
+## Next Steps
+- Confirm and book your flight
+- Confirm and book your hotel
+- Review the weather forecast closer to the event date
+- Follow the suggested itinerary on arrival
+"""
 
     return {"final_report": final_report}

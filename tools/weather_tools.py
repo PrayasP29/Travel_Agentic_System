@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime
 
 from tools.weather_mcp_client import (
@@ -31,11 +32,33 @@ def _calculate_forecast_days(event_date: str) -> int:
     return delta_days
 
 
+def _safe_get_air_quality(destination: str) -> dict:
+    """Fetch air quality, returning a concise error dict on any failure."""
+    try:
+        return get_air_quality(destination)
+    except asyncio.TimeoutError:
+        return {
+            "status": "error",
+            "provider": PROVIDER,
+            "error": "Air quality request timed out.",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "status": "error",
+            "provider": PROVIDER,
+            "error": f"Air quality lookup failed: {type(exc).__name__}: {exc}",
+        }
+
+
 def get_weather(
     destination: str | None,
     event_date: str | None,
 ) -> dict:
-    """Fetch forecast and air quality for the destination."""
+    """Fetch forecast and air quality for the destination.
+
+    Weather forecast is the primary requirement. Air quality is optional —
+    a failure there does not fail the overall weather request.
+    """
     if not destination:
         return {
             "status": "error",
@@ -68,20 +91,18 @@ def get_weather(
             "error": f"Invalid event_date format: {exc}",
         }
 
+    # Forecast is required — a failure here fails the whole request.
     forecast_result = get_weather_forecast(destination, days=days)
-    air_quality_result = get_air_quality(destination)
-
-    if (
-        forecast_result.get("status") != "success"
-        or air_quality_result.get("status") != "success"
-    ):
+    if forecast_result.get("status") != "success":
         return {
             "status": "error",
             "provider": PROVIDER,
-            "error": "Weather MCP lookup failed.",
+            "error": "Weather forecast lookup failed.",
             "forecast": forecast_result,
-            "air_quality": air_quality_result,
         }
+
+    # Air quality is optional — preserve forecast even when AQI fails.
+    air_quality_result = _safe_get_air_quality(destination)
 
     return {
         "status": "success",
