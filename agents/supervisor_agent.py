@@ -29,6 +29,7 @@ def _build_execution_plan(state: dict) -> dict:
         "run_hotel_agent":   not bool(state.get("hotel_details")),
         "run_weather_agent": not bool(state.get("weather_details")),
         "run_search_agent":  not bool(state.get("search_results")),
+        "run_local_agent":   not bool(state.get("local_results")),
     }
 
 
@@ -97,6 +98,9 @@ def supervisor_agent(state: dict) -> dict:
     updated_state.setdefault("weather_notes",   "")
     updated_state.setdefault("search_notes",    "")
     updated_state.setdefault("itinerary_notes", "")
+    updated_state.setdefault("local_results", {})
+    updated_state.setdefault("local_notes",    "")
+    updated_state.setdefault("local_status",   "")
     updated_state["execution_plan"] = _build_execution_plan(updated_state)
 
     llm   = get_text_llm()

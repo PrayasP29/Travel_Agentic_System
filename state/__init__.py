@@ -1,1 +1,1 @@
-"""Shared graph state models."""
+# intentionally blank

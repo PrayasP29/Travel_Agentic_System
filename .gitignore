@@ -74,3 +74,10 @@ Thumbs.db
 
 *.tmp
 *.temp
+
+# Cached API/MCP responses
+data/*.json
+
+# Keep folder structure
+!data/.gitkeep
+!data/README.md

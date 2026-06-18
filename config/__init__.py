@@ -1,1 +1,1 @@
-"""Configuration package."""
+# intentionally blank

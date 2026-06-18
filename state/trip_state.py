@@ -82,5 +82,13 @@ class TripPlannerState(TypedDict):
     recommended_flight_price: float
     recommended_hotel_price: float
 
+    # Supervisor-generated execution plan — which agents to run
+    execution_plan: dict
+
+    # Local discovery results (local_agent, optional)
+    local_results: dict
+    local_notes: str
+    local_status: str
+
 
 TripState = TripPlannerState

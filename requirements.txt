@@ -1,34 +1,34 @@
 # Core
-langchain
-langgraph
-langchain-community
-langchain-core
+langchain~=0.3.0
+langgraph~=0.2.0
+langchain-community~=0.3.0
+langchain-core~=0.3.0
 
 # Groq
-langchain-groq
-groq
+langchain-groq~=0.2.0
+groq~=0.11.0
 
 # Search
-tavily-python
+tavily-python~=0.5.0
 
 # Environment
-python-dotenv
+python-dotenv~=1.0.0
 
 # Notebook
-jupyter
-ipykernel
+jupyter~=1.1.0
+ipykernel~=7.2.0
 
 # Data
-pandas
-numpy
+pandas~=2.2.0
+numpy~=2.1.0
 
 # Validation
-pydantic
-pydantic-settings
+pydantic~=2.9.0
+pydantic-settings~=2.6.0
 
 # HTTP
-requests
-httpx
+requests~=2.32.0
+httpx~=0.27.0
 
 # MCP
-mcp
+mcp~=1.0.0
