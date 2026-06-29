@@ -16,41 +16,50 @@ Multi-agent travel planning using LangGraph, MCP integrations, and LLM-powered i
 
 # Overview
 
-The project demonstrates a multi-agent travel workflow built around LangGraph shared state. A user request is parsed into structured trip fields, then passed through specialist agents for flight search, hotel search, weather lookup, destination research, itinerary generation, and final report formatting.
+The project demonstrates a multi-agent travel workflow built around LangGraph shared state. A user request is parsed into structured trip fields, then passed through specialist agents for flight search, hotel search, weather lookup, destination research, local discovery, itinerary generation, and final report formatting.
 
-The main workflow is exposed through service functions rather than a web server or CLI. The primary entry point is `services.trip_planner_service.plan_trip(user_request)`, with additional conversation helpers in `services.conversation_service` for collecting missing required fields across multiple turns.
+The workflow is exposed through a **FastAPI REST API** (`backend/api/app.py`), a **CLI** (`main.py`), and Python service functions (`services.trip_planner_service.plan_trip()`). Additional conversation helpers in `services.conversation_service` support multi-turn collection of missing required fields.
 
 Main workflow:
 
 1. Parse the user request into `origin`, `destination`, `travelers`, `venue`, and `event_date`.
 2. Build a LangGraph-compatible `TripPlannerState`.
 3. Run the compiled LangGraph workflow with SQLite checkpointing.
-4. Call external MCP/API-backed tools for flights, hotels, weather, and search.
-5. Generate an itinerary from collected agent notes.
-6. Assemble a final Markdown report.
+4. Execute a coordinator agent to validate state, then a supervisor agent to determine which specialist agents to run.
+5. Call external MCP/API-backed tools for flights, hotels, weather, and search — skipping agents whose data is already available.
+6. Generate an itinerary and assemble a final Markdown report.
 
 # Architecture
 
-The LangGraph workflow is defined in `graph/trip_graph.py`. It is a sequential graph with a SQLite checkpointer from `memory/sqlite_checkpoint.py`.
+The LangGraph workflow is defined in `graph/trip_graph.py`. It uses conditional agent routing based on the supervisor's execution plan with a SQLite checkpointer from `memory/sqlite_checkpoint.py`.
 
 ```mermaid
 flowchart TD
     A[User request] --> B[request_parser_agent]
     B --> C[build_trip_state]
     C --> D[LangGraph invoke]
-    D --> E[supervisor_agent]
-    E --> F[flight_agent]
-    F --> G[hotel_agent]
-    G --> H[weather_agent]
-    H --> I[search_agent]
-    I --> J[itinerary_agent]
-    J --> K[report_formatter_agent]
-    K --> L[Final Markdown report]
+    D --> E[coordinator_agent]
+    E --> F[supervisor_agent]
+    F --> G{execution_plan}
+    G -->|flight| H[flight_agent]
+    G -->|hotel| I[hotel_agent]
+    G -->|weather| J[weather_agent]
+    G -->|search| K[search_agent]
+    G -->|local| L[local_agent]
+    H --> M{next agent}
+    I --> M
+    J --> M
+    K --> M
+    L --> M
+    M -->|continue| G
+    M -->|done| N[itinerary_agent]
+    N --> O[Final Markdown report]
 
-    F --> F1[Kiwi MCP search-flight]
-    G --> G1[Agentorist MCP search]
-    H --> H1[LiveDataLink MCP weather tools]
-    I --> I1[Tavily Search API]
+    H --> H1[Kiwi MCP search-flight]
+    I --> I1[Agentorist MCP search]
+    J --> J1[LiveDataLink MCP weather tools]
+    K --> K1[Tavily Search API]
+    L --> L1[Agentorist MCP search]
 ```
 
 Execution flow:
@@ -59,22 +68,29 @@ Execution flow:
 | --- | --- | --- |
 | Request parsing | `agents/request_parser_agent.py` | Uses the Groq-backed LangChain agent to extract structured trip fields from natural language. |
 | State creation | `utils/state_builder.py` | Normalizes parsed fields and initializes booking, pricing, and error fields. |
-| Graph orchestration | `graph/trip_graph.py` | Runs the fixed LangGraph node order and stores checkpoints in SQLite. |
-| Agent execution | `agents/*.py` | Runs each specialist agent and appends results to shared state. |
-| Report generation | `agents/report_formatter_agent.py` | Deterministically formats the final Markdown report from state. |
+| Graph orchestration | `graph/trip_graph.py` | Routes agents conditionally based on the supervisor's execution plan and stores checkpoints in SQLite. |
+| Agent execution | `agents/*.py` | Runs each specialist agent (coordinator, supervisor, flight, hotel, weather, search, local, itinerary) and appends results to shared state. |
+| Report generation | `agents/itinerary_agent.py` | Calls `report_formatter_agent` internally to deterministically assemble the final Markdown report from state. |
 
 # Features
 
 - Natural-language request parsing into structured trip fields.
-- Sequential LangGraph workflow for multi-agent trip planning.
+- Conditional LangGraph workflow — agents are skipped when data is already present via the supervisor's execution plan.
 - SQLite-backed LangGraph checkpointing with generated thread IDs.
 - Flight search through the Kiwi MCP `search-flight` tool.
 - Hotel search through the Agentorist MCP `search` tool.
 - Weather forecast and air quality lookup through LiveDataLink MCP tools.
 - Destination research through Tavily web search.
+- Local discovery search through the Agentorist MCP tool (`local_agent`).
 - LLM-generated summaries for supervisor, flight, hotel, weather, search, and itinerary outputs.
-- Deterministic final report formatting.
+- Deterministic final report formatting (no LLM) assembled by `report_formatter_agent`.
 - Conversation service for collecting missing `origin`, `destination`, and `event_date` fields.
+- FastAPI REST API with interactive Swagger/OpenAPI documentation at `/docs`.
+- CLI entry point (`main.py`) for running trip plans from the command line.
+- Request validation via Pydantic models (`backend/api/schemas/`).
+- Structured logging with per-request correlation IDs.
+- CORS middleware for web frontend integration.
+- Resume interrupted trip workflows via API or service functions.
 - Unit tests for state building, trip planning service behavior, and conversation state handling.
 - Groq Whisper transcription helper in `config/models.py`.
 
@@ -94,9 +110,21 @@ trip_planner/
 │   ├── search_agent.py
 │   ├── supervisor_agent.py
 │   └── weather_agent.py
+├── backend/
+│   └── api/
+│       ├── routes/
+│       │   └── trips.py
+│       ├── schemas/
+│       │   ├── request.py
+│       │   └── response.py
+│       ├── app.py
+│       └── log_config.py
 ├── config/
 │   ├── models.py
 │   └── settings.py
+├── data/
+│   ├── hotels_raw.json
+│   └── weather_raw.json
 ├── graph/
 │   └── trip_graph.py
 ├── memory/
@@ -122,7 +150,10 @@ trip_planner/
 ├── utils/
 │   ├── file_utils.py
 │   └── state_builder.py
+├── main.py
+├── Procfile
 ├── requirements.txt
+├── runtime.txt
 └── README.md
 ```
 
@@ -130,36 +161,40 @@ Important files:
 
 | Path | Purpose |
 | --- | --- |
-| `graph/trip_graph.py` | Builds and compiles the LangGraph workflow. |
+| `backend/api/app.py` | FastAPI application factory with CORS, logging middleware, and exception handlers. |
+| `backend/api/routes/trips.py` | REST endpoints for trip planning, state retrieval, and checkpoint resumption. |
+| `backend/api/schemas/` | Pydantic request/response models for validation and OpenAPI documentation. |
+| `graph/trip_graph.py` | Builds and compiles the LangGraph workflow with conditional agent routing. |
 | `state/trip_state.py` | Defines the shared `TripPlannerState` fields. |
-| `services/trip_planner_service.py` | Provides `plan_trip()` and `resume_trip()` entry points. |
+| `services/trip_planner_service.py` | Provides `plan_trip()` and `resume_trip()` entry points used by CLI, API, and direct Python imports. |
 | `services/conversation_service.py` | Provides multi-turn collection and resume helpers. |
 | `config/settings.py` | Loads API keys, model names, MCP URLs, and directory settings from `.env`. |
 | `config/models.py` | Creates Groq text and transcription clients. |
 | `memory/sqlite_checkpoint.py` | Configures SQLite checkpoint persistence. |
 | `tools/` | Contains wrappers for Kiwi MCP, Agentorist MCP, LiveDataLink MCP, and Tavily. |
+| `main.py` | Command-line entry point for running trip plans. |
 | `tests/` | Contains `unittest` coverage for service and state behavior. |
 
 # Agent Responsibilities
 
 | Agent | Inputs | Outputs |
 | --- | --- | --- |
-| `supervisor_agent` | Current trip state, required fields, prior agent outputs if present. | `supervisor_notes`, `execution_plan`, initialized state defaults, validation errors, `status` updates. |
+| `coordinator_agent` | Current trip state after parsing. | Validated required fields, initialized defaults, `status`. |
+| `supervisor_agent` | Current trip state, required fields, prior agent outputs if present. | `supervisor_notes`, `execution_plan` (decides which agents to run), initialized state defaults, validation errors, `status` updates. |
 | `flight_agent` | `origin`, `destination`, `event_date`, `travelers`. | `flight_details`, `flight_notes`, `flight_status`, `flight_booking_link`, `recommended_flight_price`. |
 | `hotel_agent` | `destination`, `venue`, `event_date`, `travelers`, optional `budget` and `hotel_preferences`. | `hotel_details`, `hotel_notes`, `hotel_status`, `hotel_booking_links`, `hotel_price_details`. |
 | `weather_agent` | `destination`, `event_date`. | `weather_details`, `weather_notes`, `weather_status`. |
 | `search_agent` | `destination`, `venue`, optional `interests` and `trip_style`. | `search_results`, `search_notes`, `search_status`. |
-| `itinerary_agent` | Destination details plus supervisor, flight, hotel, weather, and search notes. | `itinerary`, `itinerary_notes`, `itinerary_status`, `final_report`, final `status`. |
-| `report_formatter_agent` | Full state with agent notes and optional booking links. | Deterministic `final_report` Markdown string. |
+| `local_agent` | `destination`, `venue`. | `local_results`, `local_notes`, `local_status`. |
+| `itinerary_agent` | Destination details plus supervisor, flight, hotel, weather, search, and local notes. | `itinerary`, `itinerary_notes`, `itinerary_status`, `final_report` (via internal `report_formatter_agent` call), final `status`. |
 
-Supporting agents:
+Supporting agents (not part of the compiled LangGraph workflow):
 
 | Agent | Current use |
 | --- | --- |
 | `request_parser_agent` | Called before graph execution to extract structured fields from user input. |
-| `conversation_agent` | Used by `conversation_service` to detect missing required fields and select the next question. |
-| `local_agent` | Implemented for Agentorist local discovery, but not wired into the main LangGraph workflow. |
-| `coordinator_agent` | Implemented state validation helper, but not wired into the main LangGraph workflow. |
+| `conversation_agent` | Used by `conversation_service` to detect missing required fields and select the next question (deterministic, no LLM). |
+| `report_formatter_agent` | Called internally by `itinerary_agent` to deterministically assemble the final Markdown report from state — not a standalone graph node. |
 
 # Technologies Used
 
@@ -175,7 +210,10 @@ Supporting agents:
 | Flight provider | Kiwi MCP server |
 | Hotel/local provider | Agentorist MCP server |
 | Weather provider | LiveDataLink MCP server |
-| Checkpointing | LangGraph `SqliteSaver` |
+| Checkpointing | LangGraph `SqliteSaver`, `langgraph-checkpoint-sqlite` |
+| API framework | FastAPI, Uvicorn |
+| Request validation | Pydantic |
+| Database | SQLAlchemy, aiosqlite |
 | Configuration | `pydantic-settings`, `.env`, `python-dotenv` |
 | Testing | Python `unittest` |
 | Notebook usage | Jupyter, IPython kernel |
@@ -234,6 +272,20 @@ AGENTORIST_MCP_SERVER_URL=https://mcp.agentorist.com/mcp
 
 ```bash
 python -m unittest discover tests
+```
+
+6. Start the FastAPI development server:
+
+```bash
+uvicorn backend.api.app:app --reload
+```
+
+The API is now available at `http://localhost:8000` with interactive Swagger documentation at `http://localhost:8000/docs`.
+
+For deployment (Heroku), the included `Procfile` starts the server automatically:
+
+```
+web: uvicorn backend.api.app:app --host 0.0.0.0 --port $PORT
 ```
 
 # Configuration
@@ -297,6 +349,59 @@ continued = continue_conversation(start["thread_id"], "Miami")
 print(continued["status"])
 ```
 
+Run a trip plan from the CLI:
+
+```bash
+python main.py --request "Plan a trip from Miami to New York for 2 travelers on 2026-08-15 visiting Madison Square Garden"
+```
+
+### API Usage
+
+Start the FastAPI server, then use the REST API:
+
+**Plan a trip using structured fields:**
+
+```bash
+curl -X POST http://localhost:8000/api/trips/plan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "origin": "MIA",
+    "destination": "EWR",
+    "event_date": "2026-08-15",
+    "venue": "Prudential Center"
+  }'
+```
+
+**Plan a trip using natural language:**
+
+```bash
+curl -X POST http://localhost:8000/api/trips/plan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sentence": "I want to fly from Mumbai to Delhi on 2026-07-15 for a concert at the Dome."
+  }'
+```
+
+**Health check:**
+
+```bash
+curl http://localhost:8000/api/trips/health
+```
+
+**Get trip state by thread ID:**
+
+```bash
+curl http://localhost:8000/api/trips/api_trip_a1b2c3d4e5f6
+```
+
+**Resume a trip from checkpoint:**
+
+```bash
+curl -X POST http://localhost:8000/api/trips/api_trip_a1b2c3d4e5f6/resume
+```
+
+Open `http://localhost:8000/docs` in a browser for the interactive Swagger UI.
+
 Save a generated report to the configured outputs directory:
 
 ```python
@@ -313,16 +418,14 @@ print(path)
 
 # Current Limitations
 
-- The main graph is sequential and does not dynamically skip nodes based on the supervisor execution plan.
-- The project provides Python service functions and notebooks, but no CLI, API server, or web UI.
 - Flight results depend on the availability and response format of the Kiwi MCP server.
 - Hotel results depend on Agentorist MCP data; hotel pricing is limited to returned price categories unless the provider returns more detail.
 - Weather forecast range is clamped to 1-16 days by `tools/weather_tools.py`.
 - Air quality lookup failures do not fail the full weather request, but they are preserved in the weather result.
 - Destination research requires `TAVILY_API_KEY`; missing or failing Tavily calls return empty results with an error.
 - Agent summaries depend on Groq LLM responses and may fail if `GROQ_API_KEY` is missing or the provider is unavailable.
-- `local_agent` and `coordinator_agent` are implemented but not part of the compiled LangGraph workflow.
 - Tests mock graph and parser behavior; they do not perform live MCP, Tavily, or Groq integration tests.
+- The conversation service (`conversation_agent`) is fully deterministic and does not use an LLM.
 
 # Development Notes
 
@@ -330,21 +433,21 @@ LangGraph state is defined as a `TypedDict` in `state/trip_state.py`. Each agent
 
 Checkpointing is configured by `memory/sqlite_checkpoint.py`. By default, checkpoints are stored at `memory/trip_planner.db`, and service functions pass a generated `thread_id` through LangGraph's `configurable` configuration.
 
-Agent orchestration is implemented in `graph/trip_graph.py` with the following fixed edge order:
+Agent orchestration is implemented in `graph/trip_graph.py` with the following edge order:
 
 ```text
-START -> supervisor_agent -> flight_agent -> hotel_agent -> weather_agent
-      -> search_agent -> itinerary_agent -> END
+START -> coordinator_agent -> supervisor_agent -> [conditional routing
+        based on execution_plan] -> flight_agent | hotel_agent |
+        weather_agent | search_agent | local_agent -> ... ->
+        itinerary_agent -> END
 ```
 
 Error handling is local to each agent. Tool or LLM failures are caught, a status such as `failed` or `degraded` is written into state, and a message is appended to the `errors` list. The workflow generally continues unless required validation fails in the supervisor.
 
-The final report formatter does not call an LLM. It assembles sections directly from the state and preserves specialist agent notes verbatim.
+The final report formatter (`report_formatter_agent`) does not call an LLM. It is invoked internally by the `itinerary_agent` graph node and assembles sections directly from the state, preserving specialist agent notes verbatim.
 
 # Future Improvements
 
-- Add a CLI or API server entry point for running trip planning outside notebooks or direct Python imports.
-- Use supervisor output for conditional graph routing instead of always running every specialist node.
 - Add live integration tests for MCP services and Tavily behind optional environment flags.
 - Add structured schemas for external provider responses before LLM summarization.
 - Add a license file.
