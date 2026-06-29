@@ -264,11 +264,14 @@ def search_flights(
                 "available_tools": response["tools"],
             }
 
+        data = _serialize_tool_result(result)
+        if "content" in data and isinstance(data["content"], list):
+            data["content"] = data["content"][:5]
         return {
             "status": "success",
             "provider": "kiwi",
             "tool_used": TOOL_NAME,
-            "data": _serialize_tool_result(result),
+            "data": data,
             "available_tools": response["tools"],
         }
     except asyncio.TimeoutError as exc:

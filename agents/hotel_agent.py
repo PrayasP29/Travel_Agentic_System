@@ -22,6 +22,63 @@ def _format_price(place: dict) -> str:
     return "Price Category: Not available"
 
 
+def _format_hotel_notes(results: list, agent_notes: str) -> str:
+    """Format hotel results with links attached to each matching hotel."""
+    sections = ["Hotel Recommendations"]
+    seen = set()
+    hotel_number = 1
+
+    for place in results:
+        name = place.get("name", "Unknown Hotel")
+        address = place.get("address") or place.get("location") or "Not available"
+        identity = (name, address)
+        if identity in seen:
+            continue
+        seen.add(identity)
+
+        rating = place.get("rating", "N/A")
+        price_category = place.get("price") or "Not available"
+        booking_link = (
+            place.get("booking_url")
+            or place.get("yelp_url")
+            or place.get("url")
+            or place.get("link")
+            or "Not available"
+        )
+        notes = []
+        if place.get("description"):
+            notes.append(str(place.get("description")))
+        if place.get("categories"):
+            notes.append(f"Categories: {place.get('categories')}")
+        if place.get("phone"):
+            notes.append(f"Phone: {place.get('phone')}")
+        if place.get("review_count"):
+            notes.append(f"Review Count: {place.get('review_count')}")
+        if place.get("distance"):
+            notes.append(f"Distance: {place.get('distance')}")
+        if not notes:
+            notes.append("Recommended based on MCP hotel search data.")
+
+        sections.append(
+            f"\nHotel {hotel_number}\n\n"
+            f"* Name: {name}\n"
+            f"* Rating: {rating}\n"
+            f"* Address: {address}\n"
+            f"* Price Category: {price_category}\n"
+            f"* Booking Link: {booking_link}\n"
+            f"* Recommendation Notes: {' '.join(notes)}"
+        )
+        hotel_number += 1
+
+    if hotel_number == 1:
+        sections.append("\nNo hotel records returned by the data source.")
+
+    if agent_notes:
+        sections.append(f"\nAdditional Recommendation Notes:\n{agent_notes}")
+
+    return "\n".join(sections)
+
+
 def hotel_agent(state: dict) -> dict:
     """Use a LangChain agent to recommend hotels grounded in MCP data only."""
     updated_state = dict(state)
@@ -139,7 +196,10 @@ def hotel_agent(state: dict) -> dict:
         updated_state["hotel_booking_links"] = hotel_booking_links
         updated_state["hotel_price_details"] = hotel_price_details
         updated_state["hotel_notes"]         = (
-            hotel_notes or "Hotel search completed without additional notes."
+            _format_hotel_notes(
+                results,
+                hotel_notes or "Hotel search completed without additional notes.",
+            )
         )
         updated_state["hotel_status"] = "completed"
 

@@ -33,6 +33,7 @@ def plan_trip(user_request: str) -> dict[str, Any]:
     state = build_trip_state(parsed_request)
     thread_id = _generate_thread_id()
 
+    print("CLI INITIAL STATE:", state)
     result = _get_graph().invoke(
         state,
         config={

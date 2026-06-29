@@ -36,6 +36,99 @@ def _last_message_content(response: dict) -> str:
     return getattr(messages[-1], "content", "") or ""
 
 
+def _format_flight_notes(flights_list: list, fallback_notes: str) -> str:
+    """Format all returned flight records without dropping MCP fields."""
+    if not flights_list:
+        return fallback_notes or "No flights returned in flight_result."
+
+    sections = ["Flight Information"]
+    seen = set()
+
+    for idx, flight in enumerate(flights_list, 1):
+        identity = (
+            flight.get("flyFrom"),
+            flight.get("flyTo"),
+            flight.get("departure", {}).get("local"),
+            flight.get("arrival", {}).get("local"),
+            flight.get("price"),
+            flight.get("deepLink"),
+        )
+        if identity in seen:
+            continue
+        seen.add(identity)
+
+        departure = flight.get("departure", {}) or {}
+        arrival = flight.get("arrival", {}) or {}
+        layovers = flight.get("layovers", []) or []
+        currency = flight.get("currency", "EUR")
+        booking_link = (
+            flight.get("deepLink")
+            or flight.get("booking_url")
+            or flight.get("url")
+            or flight.get("bookingLink")
+            or flight.get("share_url")
+            or "Not available"
+        )
+        duration = (
+            flight.get("duration")
+            or flight.get("durationText")
+            or flight.get("duration_text")
+            or flight.get("fly_duration")
+            or "Not available"
+        )
+        price = flight.get("price")
+        price_text = f"{price} {currency}" if price is not None else "Not available"
+        route = (
+            f"{flight.get('flyFrom', 'Unknown')} → {flight.get('flyTo', 'Unknown')}"
+        )
+        city_route = (
+            f"{flight.get('cityFrom', '')} → {flight.get('cityTo', '')}".strip(" →")
+        )
+        layover_notes = (
+            "Direct flight"
+            if not layovers
+            else "Layovers: "
+            + ", ".join(
+                filter(
+                    None,
+                    [
+                        layover.get("city")
+                        or layover.get("airport")
+                        or layover.get("flyTo")
+                        for layover in layovers
+                    ],
+                )
+            )
+        )
+
+        additional_notes = [layover_notes]
+        if city_route:
+            additional_notes.append(f"City route: {city_route}")
+
+        sections.append(
+            f"\nFlight {idx}\n\n"
+            "Route:\n"
+            f"{route}\n\n"
+            "Departure Time:\n"
+            f"{departure.get('local') or departure.get('utc') or 'Not available'}\n\n"
+            "Arrival Time:\n"
+            f"{arrival.get('local') or arrival.get('utc') or 'Not available'}\n\n"
+            "Duration:\n"
+            f"{duration}\n\n"
+            "Price:\n"
+            f"{price_text}\n\n"
+            "Booking Link:\n"
+            f"{booking_link}\n\n"
+            "Additional Notes:\n"
+            + "\n".join(f"- {note}" for note in additional_notes if note)
+        )
+
+    if fallback_notes:
+        sections.append(f"\nAgent Recommendation Notes:\n{fallback_notes}")
+
+    return "\n".join(sections)
+
+
 def flight_agent(state: dict) -> dict:
     """Run deterministic flight search, then summarize results."""
     updated_state = dict(state)
@@ -82,6 +175,7 @@ def flight_agent(state: dict) -> dict:
             return updated_state
 
         flights_list = parse_flight_data(flight_result)
+        flights_list = flights_list[:5]
         flights_summary_for_agent = ""
         if flights_list:
             for idx, f in enumerate(flights_list, 1):
@@ -130,7 +224,7 @@ def flight_agent(state: dict) -> dict:
             model=get_text_llm(),
             tools=[],
             system_prompt=(
-                "You are a flight planning agent. Your task is to review the list of available flights, "
+                 "You are a flight planning agent. Your task is to review the list of available flights, "
                 "select the best option for the traveler (e.g. considering price, duration, direct vs layovers), "
                 "and generate a concise recommendation summary.\n"
                 "Your output summary MUST contain exactly these fields in markdown:\n"
@@ -179,7 +273,10 @@ def flight_agent(state: dict) -> dict:
         updated_state["flight_booking_link"]      = selected_booking_link
         updated_state["recommended_flight_price"] = selected_price
         updated_state["flight_notes"]             = (
-            flight_notes or "Flight agent completed without additional notes."
+            _format_flight_notes(
+                flights_list,
+                flight_notes or "Flight agent completed without additional notes.",
+            )
         )
         updated_state["flight_status"] = (
             "completed" if flight_result.get("status") == "success" else "failed"

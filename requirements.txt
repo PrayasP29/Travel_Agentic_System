@@ -1,34 +1,34 @@
-# Core
-langchain~=0.3.0
-langgraph~=0.2.0
-langchain-community~=0.3.0
-langchain-core~=0.3.0
+# Core AI Framework
+langchain
+langchain-core
+langchain-community
+langgraph
 
-# Groq
-langchain-groq~=0.2.0
-groq~=0.11.0
+# LLM Provider
+langchain-groq
+groq
 
 # Search
-tavily-python~=0.5.0
-
-# Environment
-python-dotenv~=1.0.0
-
-# Notebook
-jupyter~=1.1.0
-ipykernel~=7.2.0
-
-# Data
-pandas~=2.2.0
-numpy~=2.1.0
-
-# Validation
-pydantic~=2.9.0
-pydantic-settings~=2.6.0
-
-# HTTP
-requests~=2.32.0
-httpx~=0.27.0
+tavily-python
 
 # MCP
-mcp~=1.0.0
+mcp
+
+# Environment & Configuration
+python-dotenv
+pydantic
+pydantic-settings
+
+# API / HTTP
+fastapi
+uvicorn
+httpx
+requests
+
+# Database & Checkpointing
+sqlalchemy
+aiosqlite
+langgraph-checkpoint-sqlite
+
+# Utilities
+typing-extensions

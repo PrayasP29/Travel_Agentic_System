@@ -231,6 +231,8 @@ def _run_search(payload: dict) -> dict:
                 "data": structured_results,
             }
 
+        if "results" in structured_results and isinstance(structured_results["results"], list):
+            structured_results["results"] = structured_results["results"][:5]
         return {
             "status": "success",
             "provider": "agentorist",
