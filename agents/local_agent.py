@@ -14,7 +14,7 @@ def _last_message_content(response: dict) -> str:
     return getattr(messages[-1], "content", "") or ""
 
 
-def local_agent(state: dict) -> dict:
+async def local_agent(state: dict) -> dict:
     """Use a LangChain agent to decide whether local discovery is needed."""
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
@@ -41,7 +41,7 @@ def local_agent(state: dict) -> dict:
             f"venue: {venue}"
         )
 
-        response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+        response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
         local_notes = _last_message_content(response)
 
         updated_state["local_results"] = response

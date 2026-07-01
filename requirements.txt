@@ -1,34 +1,31 @@
 # Core AI Framework
-langchain
-langchain-core
-langchain-community
-langgraph
+langchain==1.3.11
+langchain-core==1.4.8
+langchain-community==0.4.2
+langgraph==1.2.6
 
 # LLM Provider
-langchain-groq
-groq
+langchain-groq==1.1.3
+groq==0.37.1
 
 # Search
-tavily-python
+tavily-python==0.7.26
 
 # MCP
-mcp
+mcp==1.28.0
 
 # Environment & Configuration
-python-dotenv
-pydantic
-pydantic-settings
+python-dotenv==1.2.2
+pydantic==2.13.4
+pydantic-settings==2.14.2
 
 # API / HTTP
-fastapi
-uvicorn
-httpx
-requests
+fastapi==0.138.0
+uvicorn==0.49.0
+httpx==0.28.1
+requests==2.34.2
 
 # Database & Checkpointing
-sqlalchemy
-aiosqlite
-langgraph-checkpoint-sqlite
-
-# Utilities
-typing-extensions
+sqlalchemy==2.0.51
+aiosqlite==0.22.1
+langgraph-checkpoint-sqlite==3.1.0

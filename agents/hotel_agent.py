@@ -79,7 +79,7 @@ def _format_hotel_notes(results: list, agent_notes: str) -> str:
     return "\n".join(sections)
 
 
-def hotel_agent(state: dict) -> dict:
+async def hotel_agent(state: dict) -> dict:
     """Use a LangChain agent to recommend hotels grounded in MCP data only."""
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
@@ -92,7 +92,7 @@ def hotel_agent(state: dict) -> dict:
         budget            = updated_state.get("budget")
         hotel_preferences = updated_state.get("hotel_preferences")
 
-        hotel_result = search_hotels(destination=destination)
+        hotel_result = await search_hotels(destination=destination)
         updated_state["hotel_details"] = hotel_result
 
         if hotel_result.get("status") != "success":
@@ -190,7 +190,7 @@ def hotel_agent(state: dict) -> dict:
             f"MCP Hotel Results:\n{mcp_summary_block}"
         )
 
-        response    = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+        response    = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
         hotel_notes = _last_message_content(response)
 
         updated_state["hotel_booking_links"] = hotel_booking_links

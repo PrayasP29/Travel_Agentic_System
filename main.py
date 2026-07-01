@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 
 from services.trip_planner_service import plan_trip
 
@@ -19,7 +20,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    result = plan_trip(args.request)
+    result = asyncio.run(plan_trip(args.request))
     print(result.get("final_report", ""))
 
 

@@ -32,10 +32,10 @@ def _calculate_forecast_days(event_date: str) -> int:
     return delta_days
 
 
-def _safe_get_air_quality(destination: str) -> dict:
+async def _safe_get_air_quality(destination: str) -> dict:
     """Fetch air quality, returning a concise error dict on any failure."""
     try:
-        return get_air_quality(destination)
+        return await get_air_quality(destination)
     except asyncio.TimeoutError:
         return {
             "status": "error",
@@ -50,7 +50,7 @@ def _safe_get_air_quality(destination: str) -> dict:
         }
 
 
-def get_weather(
+async def get_weather(
     destination: str | None,
     event_date: str | None,
 ) -> dict:
@@ -67,7 +67,7 @@ def get_weather(
         }
 
     if not event_date:
-        current_result = get_current_weather(destination)
+        current_result = await get_current_weather(destination)
         if current_result.get("status") != "success":
             return {
                 "status": "error",
@@ -92,7 +92,7 @@ def get_weather(
         }
 
     # Forecast is required — a failure here fails the whole request.
-    forecast_result = get_weather_forecast(destination, days=days)
+    forecast_result = await get_weather_forecast(destination, days=days)
     if forecast_result.get("status") != "success":
         return {
             "status": "error",
@@ -102,7 +102,7 @@ def get_weather(
         }
 
     # Air quality is optional — preserve forecast even when AQI fails.
-    air_quality_result = _safe_get_air_quality(destination)
+    air_quality_result = await _safe_get_air_quality(destination)
 
     return {
         "status": "success",

@@ -1,5 +1,7 @@
 """LangGraph workflow for the multi-agent trip planner."""
 
+import inspect
+
 from langgraph.graph import END, START, StateGraph
 
 from agents.coordinator import coordinator_agent
@@ -57,14 +59,24 @@ def _make_route_after(after: str):
     return _router
 
 
-def build_trip_graph():
-    """Build and compile the trip-planning graph."""
+async def build_trip_graph(*, checkpointer=None):
+    """Build and compile the trip-planning graph.
+
+    Args:
+        checkpointer: Optional checkpointer override. If None, defaults to
+                      AsyncSqliteSaver via get_checkpointer().
+    """
     graph = StateGraph(TripPlannerState)
 
     def _run_with_debug(name, fn):
-        def _wrapped(state: dict):
-            print(f"RUNNING NODE: {name}")
-            return fn(state)
+        if inspect.iscoroutinefunction(fn):
+            async def _wrapped(state: dict):
+                print(f"RUNNING NODE: {name}")
+                return await fn(state)
+        else:
+            def _wrapped(state: dict):
+                print(f"RUNNING NODE: {name}")
+                return fn(state)
 
         return _wrapped
 
@@ -107,5 +119,6 @@ def build_trip_graph():
         )
 
     # ── Persistence ────────────────────────────────────────────────────
-    checkpointer = get_checkpointer()
+    if checkpointer is None:
+        checkpointer = await get_checkpointer()
     return graph.compile(checkpointer=checkpointer)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 import traceback
 from typing import Any
 
@@ -149,36 +148,6 @@ async def _list_tools_and_call(
             return {"tools": tool_names, "result": result}
 
 
-def _run_coroutine(coro):
-    """Run a coroutine from sync code, handling running event loops."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-
-    result_container: dict[str, Any] = {}
-    error_container: dict[str, Exception] = {}
-
-    def _runner():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result_container["result"] = loop.run_until_complete(coro)
-        except Exception as exc:  # noqa: BLE001 - want to bubble up any error.
-            error_container["error"] = exc
-        finally:
-            loop.close()
-
-    thread = threading.Thread(target=_runner, daemon=True)
-    thread.start()
-    thread.join()
-
-    if "error" in error_container:
-        raise error_container["error"]
-
-    return result_container.get("result")
-
-
 def _extract_structured_results(result: Any) -> dict[str, Any]:
     """Pull structured results from the MCP response."""
     serialized = _serialize_tool_result(result)
@@ -199,15 +168,13 @@ def _is_empty_results(structured: dict[str, Any]) -> bool:
     return False
 
 
-def _run_search(payload: dict) -> dict:
+async def _run_search(payload: dict) -> dict:
     """Execute the Agentorist search tool with the provided payload."""
     try:
-        response = _run_coroutine(
-            _list_tools_and_call(
-                settings.agentorist_mcp_server_url,
-                payload,
-                DEFAULT_TIMEOUT_SECONDS,
-            )
+        response = await _list_tools_and_call(
+            settings.agentorist_mcp_server_url,
+            payload,
+            DEFAULT_TIMEOUT_SECONDS,
         )
         result = response["result"]
         if getattr(result, "isError", False):
@@ -259,7 +226,7 @@ def _run_search(payload: dict) -> dict:
         }
 
 
-def search_local_places(destination: str, venue: str | None = None) -> dict:
+async def search_local_places(destination: str, venue: str | None = None) -> dict:
     """Search local places using the Agentorist MCP tool."""
     if not destination:
         return {
@@ -278,10 +245,10 @@ def search_local_places(destination: str, venue: str | None = None) -> dict:
         "agent_client": "TripPlanner",
     }
 
-    return _run_search(payload)
+    return await _run_search(payload)
 
 
-def search_hotels(destination: str) -> dict:
+async def search_hotels(destination: str) -> dict:
     """Search for hotels using the Agentorist MCP hotel search."""
     if not destination:
         return {
@@ -299,7 +266,7 @@ def search_hotels(destination: str) -> dict:
         "agent_client": "TripPlanner",
     }
 
-    result = _run_search(payload)
+    result = await _run_search(payload)
 
     # Print first returned hotel record for verification
     if DEBUG and result.get("status") == "success":

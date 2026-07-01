@@ -17,12 +17,25 @@ def parse_flight_data(flight_result: dict) -> list:
         if flight_result.get("status") != "success":
             return []
         data = flight_result.get("data", {})
+
+        structured = data.get("structured")
+        if structured:
+            itineraries = structured.get("itineraries")
+            if itineraries:
+                return itineraries
+
         content_list = data.get("content", [])
         for content in content_list:
             if content.get("type") == "text":
-                text = content.get("text", "")
-                if text.strip().startswith("["):
-                    return json.loads(text)
+                text = content.get("text", "").strip()
+                if text:
+                    parsed = json.loads(text)
+                    if isinstance(parsed, list):
+                        return parsed
+                    if isinstance(parsed, dict):
+                        itineraries = parsed.get("itineraries")
+                        if itineraries:
+                            return itineraries
     except Exception:
         pass
     return []
@@ -129,7 +142,7 @@ def _format_flight_notes(flights_list: list, fallback_notes: str) -> str:
     return "\n".join(sections)
 
 
-def flight_agent(state: dict) -> dict:
+async def flight_agent(state: dict) -> dict:
     """Run deterministic flight search, then summarize results."""
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
@@ -158,7 +171,7 @@ def flight_agent(state: dict) -> dict:
             print("event_date =", event_date)
             print("travelers =", travelers)
 
-        flight_result = search_flights(
+        flight_result = await search_flights(
             origin=origin,
             destination=destination,
             event_date=event_date,
@@ -251,7 +264,7 @@ def flight_agent(state: dict) -> dict:
             f"travelers: {travelers}\n\n"
             f"Available Flights:\n{flights_summary_for_agent}"
         )
-        response     = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+        response     = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
         flight_notes = _last_message_content(response)
 
         # Post-process response to extract actual selected flight's booking link and price

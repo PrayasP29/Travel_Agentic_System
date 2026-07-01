@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     langchain_endpoint: str = "https://api.smith.langchain.com"
 
     # MODELS
-    groq_text_model: str = "llama-3.3-70b-versatile"
+    groq_text_model: str = "openai/gpt-oss-20b"
     groq_transcription_model: str = "whisper-large-v3"
 
     # MCP SERVERS

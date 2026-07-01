@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 import traceback
 from typing import Any
 
@@ -61,36 +60,6 @@ async def _call_tool(
             return {"tools": tool_names, "result": result}
 
 
-def _run_coroutine(coro):
-    """Run a coroutine from sync code, handling running event loops."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-
-    result_container: dict[str, Any] = {}
-    error_container: dict[str, Exception] = {}
-
-    def _runner():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result_container["result"] = loop.run_until_complete(coro)
-        except Exception as exc:  # noqa: BLE001 - want to bubble up any error.
-            error_container["error"] = exc
-        finally:
-            loop.close()
-
-    thread = threading.Thread(target=_runner, daemon=True)
-    thread.start()
-    thread.join()
-
-    if "error" in error_container:
-        raise error_container["error"]
-
-    return result_container.get("result")
-
-
 def _handle_response(tool_name: str, response: dict) -> dict:
     """Normalize MCP response to the standard return format."""
     result = response["result"]
@@ -122,7 +91,7 @@ def _handle_response(tool_name: str, response: dict) -> dict:
     }
 
 
-def get_current_weather(location: str) -> dict:
+async def get_current_weather(location: str) -> dict:
     """Fetch current weather conditions via LiveDataLink MCP."""
     if not location:
         return {
@@ -136,9 +105,7 @@ def get_current_weather(location: str) -> dict:
     payload = {"location": location}
 
     try:
-        response = _run_coroutine(
-            _call_tool("weather_current", payload, DEFAULT_TIMEOUT_SECONDS)
-        )
+        response = await _call_tool("weather_current", payload, DEFAULT_TIMEOUT_SECONDS)
         return _handle_response("weather_current", response)
     except asyncio.TimeoutError as exc:
         error_details = _log_exception_details(exc)
@@ -160,7 +127,7 @@ def get_current_weather(location: str) -> dict:
         }
 
 
-def get_weather_forecast(location: str, days: int = 7) -> dict:
+async def get_weather_forecast(location: str, days: int = 7) -> dict:
     """Fetch weather forecast via LiveDataLink MCP."""
     if not location:
         return {
@@ -174,9 +141,7 @@ def get_weather_forecast(location: str, days: int = 7) -> dict:
     payload = {"location": location, "days": days}
 
     try:
-        response = _run_coroutine(
-            _call_tool("weather_forecast", payload, DEFAULT_TIMEOUT_SECONDS)
-        )
+        response = await _call_tool("weather_forecast", payload, DEFAULT_TIMEOUT_SECONDS)
         return _handle_response("weather_forecast", response)
     except asyncio.TimeoutError as exc:
         error_details = _log_exception_details(exc)
@@ -198,7 +163,7 @@ def get_weather_forecast(location: str, days: int = 7) -> dict:
         }
 
 
-def get_air_quality(location: str) -> dict:
+async def get_air_quality(location: str) -> dict:
     """Fetch air quality via LiveDataLink MCP."""
     if not location:
         return {
@@ -212,7 +177,7 @@ def get_air_quality(location: str) -> dict:
     payload = {"location": location}
 
     try:
-        response = _run_coroutine(_call_tool("air_quality", payload, DEFAULT_TIMEOUT_SECONDS))
+        response = await _call_tool("air_quality", payload, DEFAULT_TIMEOUT_SECONDS)
         return _handle_response("air_quality", response)
     except asyncio.TimeoutError as exc:
         error_details = _log_exception_details(exc)

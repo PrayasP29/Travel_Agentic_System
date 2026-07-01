@@ -13,12 +13,12 @@ from utils.state_builder import build_trip_state
 _GRAPH_INSTANCE = None
 
 
-def _get_graph():
+async def _get_graph():
     global _GRAPH_INSTANCE
     if _GRAPH_INSTANCE is None:
         from graph.trip_graph import build_trip_graph
 
-        _GRAPH_INSTANCE = build_trip_graph()
+        _GRAPH_INSTANCE = await build_trip_graph()
     return _GRAPH_INSTANCE
 
 
@@ -53,8 +53,8 @@ def _merge_state(current: Mapping[str, Any], updates: Mapping[str, Any]) -> dict
     return merged
 
 
-def _save_state(thread_id: str, state: Mapping[str, Any]) -> None:
-    graph = _get_graph()
+async def _save_state(thread_id: str, state: Mapping[str, Any]) -> None:
+    graph = await _get_graph()
     config = {"configurable": {"thread_id": thread_id}}
     if hasattr(graph, "update_state"):
         graph.update_state(config, dict(state))
@@ -62,8 +62,8 @@ def _save_state(thread_id: str, state: Mapping[str, Any]) -> None:
     raise RuntimeError("Graph does not support update_state for checkpointing.")
 
 
-def _load_state(thread_id: str) -> dict[str, Any]:
-    graph = _get_graph()
+async def _load_state(thread_id: str) -> dict[str, Any]:
+    graph = await _get_graph()
     config = {"configurable": {"thread_id": thread_id}}
     snapshot = graph.get_state(config)
     if snapshot is None:
@@ -101,11 +101,11 @@ def _compose_request(state: Mapping[str, Any]) -> str:
     return " ".join(parts).strip()
 
 
-def _advance_conversation(thread_id: str, state: dict[str, Any]) -> dict[str, Any]:
+async def _advance_conversation(thread_id: str, state: dict[str, Any]) -> dict[str, Any]:
     status = conversation_status(state)
     if not status["ready"]:
         state["status"] = "collecting"
-        _save_state(thread_id, state)
+        await _save_state(thread_id, state)
         return {
             "thread_id": thread_id,
             "status": "collecting",
@@ -125,15 +125,15 @@ def _advance_conversation(thread_id: str, state: dict[str, Any]) -> dict[str, An
 
     request_text = _compose_request(state)
     state["status"] = "planning"
-    _save_state(thread_id, state)
-    plan_result = plan_trip(request_text)
+    await _save_state(thread_id, state)
+    plan_result = await plan_trip(request_text)
     
     # Store returned graph result into conversation["state"]
     if isinstance(plan_result, dict):
         state.update(plan_result)
         
     state["status"] = "completed"
-    _save_state(thread_id, state)
+    await _save_state(thread_id, state)
 
     return {
         "thread_id": thread_id,
@@ -146,7 +146,7 @@ def _advance_conversation(thread_id: str, state: dict[str, Any]) -> dict[str, An
 
 
 
-def start_conversation(user_message: str) -> dict[str, Any]:
+async def start_conversation(user_message: str) -> dict[str, Any]:
     """Start a multi-turn trip planning conversation."""
     if not user_message or not user_message.strip():
         raise ValueError("user_message must be a non-empty string.")
@@ -155,7 +155,7 @@ def start_conversation(user_message: str) -> dict[str, Any]:
     parsed = request_parser_agent(user_message)
     state = build_trip_state(parsed)
     state["status"] = "collecting"
-    return _advance_conversation(thread_id, state)
+    return await _advance_conversation(thread_id, state)
 
 
 def _normalize_event_date(user_message: str) -> str | None:
@@ -195,14 +195,14 @@ def _normalize_event_date(user_message: str) -> str | None:
     return None
 
 
-def continue_conversation(thread_id: str, user_message: str) -> dict[str, Any]:
+async def continue_conversation(thread_id: str, user_message: str) -> dict[str, Any]:
     """Continue an existing conversation by merging new user input."""
     if not thread_id or not str(thread_id).strip():
         raise ValueError("thread_id must be a non-empty string.")
     if not user_message or not user_message.strip():
         raise ValueError("user_message must be a non-empty string.")
 
-    current_state = _load_state(thread_id)
+    current_state = await _load_state(thread_id)
     
     from agents.conversation_agent import detect_missing_fields
     missing_fields = detect_missing_fields(current_state)
@@ -223,14 +223,14 @@ def continue_conversation(thread_id: str, user_message: str) -> dict[str, Any]:
         parsed = request_parser_agent(user_message)
         updated_state = _merge_state(current_state, parsed)
 
-    return _advance_conversation(thread_id, updated_state)
+    return await _advance_conversation(thread_id, updated_state)
 
 
-def resume_conversation(thread_id: str) -> dict[str, Any]:
+async def resume_conversation(thread_id: str) -> dict[str, Any]:
     """Resume a previously started conversation."""
     if not thread_id or not str(thread_id).strip():
         raise ValueError("thread_id must be a non-empty string.")
 
-    state = _load_state(thread_id)
-    return _advance_conversation(thread_id, state)
+    state = await _load_state(thread_id)
+    return await _advance_conversation(thread_id, state)
 

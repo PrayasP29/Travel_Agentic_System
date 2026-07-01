@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 import uuid
 from unittest.mock import patch
@@ -16,6 +17,10 @@ class _StubGraph:
         self.last_state_config = None
 
     def invoke(self, state, config=None):
+        self.invocations.append((state, config))
+        return {"status": "completed"}
+
+    async def ainvoke(self, state, config=None):
         self.invocations.append((state, config))
         return {"status": "completed"}
 
@@ -44,12 +49,15 @@ class TestTripPlannerService(unittest.TestCase):
         }
         fixed_uuid = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
-        with patch.object(service, "_get_graph", return_value=stub_graph), patch.object(
+        async def _mock_get_graph():
+            return stub_graph
+
+        with patch.object(service, "_get_graph", new=_mock_get_graph), patch.object(
             service, "request_parser_agent", return_value=parsed
         ), patch.object(service, "build_trip_state", return_value=built_state), patch.object(
             service.uuid, "uuid4", return_value=fixed_uuid
         ):
-            result = service.plan_trip("Plan a trip to New York")
+            result = asyncio.run(service.plan_trip("Plan a trip to New York"))
 
         self.assertEqual(result["thread_id"], "trip_00000000000000000000000000000001")
         self.assertEqual(result["status"], "completed")
@@ -62,8 +70,11 @@ class TestTripPlannerService(unittest.TestCase):
     def test_resume_trip_returns_snapshot_values(self):
         stub_graph = _StubGraph()
 
-        with patch.object(service, "_get_graph", return_value=stub_graph):
-            result = service.resume_trip("trip_test_001")
+        async def _mock_get_graph():
+            return stub_graph
+
+        with patch.object(service, "_get_graph", new=_mock_get_graph):
+            result = asyncio.run(service.resume_trip("trip_test_001"))
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(

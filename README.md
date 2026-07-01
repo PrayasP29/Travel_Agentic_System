@@ -204,7 +204,7 @@ Supporting agents (not part of the compiled LangGraph workflow):
 | Agent workflow | LangGraph |
 | Agent framework | LangChain |
 | LLM provider | Groq via `langchain-groq` |
-| Text model default | `llama-3.3-70b-versatile` |
+| Text model default | `openai/gpt-oss-20b` |
 | Transcription model default | `whisper-large-v3` |
 | Search API | Tavily |
 | Flight provider | Kiwi MCP server |
@@ -300,7 +300,7 @@ Configuration is loaded from `.env` by `config/settings.py`.
 | `LANGCHAIN_TRACING` | Optional | `true` | Sets `LANGCHAIN_TRACING_V2`. |
 | `LANGCHAIN_PROJECT` | Optional | `TripPlanner` | LangSmith project name. |
 | `LANGCHAIN_ENDPOINT` | Optional | `https://api.smith.langchain.com` | LangSmith endpoint. |
-| `GROQ_TEXT_MODEL` | Optional | `llama-3.3-70b-versatile` | Chat model name. |
+| `GROQ_TEXT_MODEL` | Optional | `openai/gpt-oss-20b` | Chat model name. |
 | `GROQ_TRANSCRIPTION_MODEL` | Optional | `whisper-large-v3` | Groq transcription model. |
 | `KIWI_MCP_SERVER_URL` | Required for flights | `https://mcp.kiwi.com` | Kiwi MCP flight search. |
 | `WEATHER_PROVIDER` | Optional | `livedatalink` | Weather provider label. |

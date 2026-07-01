@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 import traceback
 from datetime import datetime
 from typing import Any
@@ -62,43 +61,9 @@ def _serialize_tool_result(result: Any) -> dict:
     return payload
 
 
-def _flatten_exceptions(exc: BaseException) -> list[BaseException]:
-    """Flatten nested ExceptionGroup-style exceptions into leaf errors."""
-    nested = getattr(exc, "exceptions", None)
-    if not nested:
-        return [exc]
-
-    leaves: list[BaseException] = []
-    for child in nested:
-        leaves.extend(_flatten_exceptions(child))
-    return leaves
-
-
-def _format_exception_details(exc: BaseException) -> list[str]:
-    """Return detailed exception info including nested ExceptionGroup details."""
-    lines = [
-        "ROOT ERROR:",
-        f"{type(exc).__name__}",
-        f"{exc}",
-        "",
-        "TRACEBACK:",
-    ]
-    tb_lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
-    lines.extend(line.rstrip() for line in tb_lines)
-
-    leaves = _flatten_exceptions(exc)
-    if len(leaves) > 1 or leaves[0] is not exc:
-        lines.append("")
-        lines.append("NESTED:")
-        for index, child in enumerate(leaves, start=1):
-            lines.append(f"{index}. {type(child).__name__}: {child}")
-
-    return lines
-
-
 def _log_exception_details(exc: BaseException) -> str:
     """Print and return detailed exception diagnostics."""
-    details = "\n".join(_format_exception_details(exc))
+    details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     print("MCP ERROR DETAILS")
     print(details)
     return details
@@ -194,36 +159,6 @@ async def _list_tools_and_call(
             return {"tools": tool_names, "result": result}
 
 
-def _run_coroutine(coro):
-    """Run a coroutine from sync code, handling running event loops."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-
-    result_container: dict[str, Any] = {}
-    error_container: dict[str, Exception] = {}
-
-    def _runner():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result_container["result"] = loop.run_until_complete(coro)
-        except Exception as exc:  # noqa: BLE001 - want to bubble up any error.
-            error_container["error"] = exc
-        finally:
-            loop.close()
-
-    thread = threading.Thread(target=_runner, daemon=True)
-    thread.start()
-    thread.join()
-
-    if "error" in error_container:
-        raise error_container["error"]
-
-    return result_container.get("result")
-
-
 def _format_departure_date(event_date: str | None) -> str | None:
     """Convert YYYY-MM-DD to DD/MM/YYYY for the Kiwi MCP tool."""
     if not event_date:
@@ -231,7 +166,7 @@ def _format_departure_date(event_date: str | None) -> str | None:
     return datetime.strptime(event_date, "%Y-%m-%d").strftime("%d/%m/%Y")
 
 
-def search_flights(
+async def search_flights(
     origin: str | None = None,
     destination: str | None = None,
     event_date: str | None = None,
@@ -243,13 +178,12 @@ def search_flights(
         "flyFrom": origin,
         "flyTo": destination,
         "departureDate": departure_date,
+        "adults": travelers,
     }
 
     try:
-        response = _run_coroutine(
-            _list_tools_and_call(
-                settings.kiwi_mcp_server_url, payload, DEFAULT_TIMEOUT_SECONDS
-            )
+        response = await _list_tools_and_call(
+            settings.kiwi_mcp_server_url, payload, DEFAULT_TIMEOUT_SECONDS
         )
         result = response["result"]
         if getattr(result, "isError", False):

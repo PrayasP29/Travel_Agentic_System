@@ -1,6 +1,7 @@
 """LangGraph-compatible state definition for the trip planner workflow."""
 
-from typing import TypedDict
+import operator
+from typing import Annotated, TypedDict
 
 
 class TripPlannerState(TypedDict):
@@ -72,13 +73,14 @@ class TripPlannerState(TypedDict):
     # Current workflow status such as pending, running, completed, or failed.
     status: str
 
-    # Error messages collected during graph execution.
-    errors: list[str]
+    # Error messages collected during graph execution. Annotated reducer
+    # ensures errors from parallel branches accumulate rather than overwrite.
+    errors: Annotated[list[str], operator.add]
 
     # Booking and pricing state details
     flight_booking_link: str
-    hotel_booking_links: list[str]
-    hotel_price_details: list[str]
+    hotel_booking_links: Annotated[list[str], operator.add]
+    hotel_price_details: Annotated[list[str], operator.add]
     recommended_flight_price: float
     recommended_hotel_price: float
 

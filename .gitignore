@@ -81,3 +81,8 @@ data/*.json
 # Keep folder structure
 !data/.gitkeep
 !data/README.md
+
+_debug_agents.py
+_debug_checkpointer.py
+_debug_trace.py
+_repro.py

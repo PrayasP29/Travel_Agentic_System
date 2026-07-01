@@ -1,5 +1,6 @@
+import asyncio
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import services.conversation_service as service
 
@@ -22,6 +23,12 @@ class _StubGraph:
         return _StubSnapshot(self.store.get(thread_id, {}))
 
 
+def _mock_get_graph(stub_graph):
+    async def _inner():
+        return stub_graph
+    return _inner
+
+
 class TestConversationService(unittest.TestCase):
     def test_missing_origin(self):
         stub_graph = _StubGraph()
@@ -33,10 +40,10 @@ class TestConversationService(unittest.TestCase):
             "event_date": "2026-08-15",
         }
 
-        with patch.object(service, "_get_graph", return_value=stub_graph), patch.object(
+        with patch.object(service, "_get_graph", new=_mock_get_graph(stub_graph)), patch.object(
             service, "request_parser_agent", return_value=parsed
         ), patch.object(service, "_generate_thread_id", return_value="conversation_1"):
-            result = service.start_conversation("Plan a trip to New York on 2026-08-15")
+            result = asyncio.run(service.start_conversation("Plan a trip to New York on 2026-08-15"))
 
         self.assertEqual(result["status"], "collecting")
         self.assertEqual(result["missing_fields"], ["origin"])
@@ -52,10 +59,10 @@ class TestConversationService(unittest.TestCase):
             "event_date": "",
         }
 
-        with patch.object(service, "_get_graph", return_value=stub_graph), patch.object(
+        with patch.object(service, "_get_graph", new=_mock_get_graph(stub_graph)), patch.object(
             service, "request_parser_agent", return_value=parsed
         ), patch.object(service, "_generate_thread_id", return_value="conversation_2"):
-            result = service.start_conversation("Plan a trip from Miami to New York")
+            result = asyncio.run(service.start_conversation("Plan a trip from Miami to New York"))
 
         self.assertEqual(result["status"], "collecting")
         self.assertEqual(result["missing_fields"], ["event_date"])
@@ -76,8 +83,8 @@ class TestConversationService(unittest.TestCase):
             },
         )
 
-        with patch.object(service, "_get_graph", return_value=stub_graph):
-            result = service.resume_conversation("conversation_3")
+        with patch.object(service, "_get_graph", new=_mock_get_graph(stub_graph)):
+            result = asyncio.run(service.resume_conversation("conversation_3"))
 
         self.assertEqual(result["status"], "collecting")
         self.assertEqual(result["missing_fields"], ["origin"])
@@ -99,21 +106,21 @@ class TestConversationService(unittest.TestCase):
             "event_date": "",
         }
 
-        with patch.object(service, "_get_graph", return_value=stub_graph), patch.object(
+        with patch.object(service, "_get_graph", new=_mock_get_graph(stub_graph)), patch.object(
             service, "_generate_thread_id", return_value="conversation_4"
         ), patch.object(
             service, "request_parser_agent", side_effect=[parsed_start, parsed_continue]
         ), patch.object(
-            service, "plan_trip", return_value={"status": "completed", "thread_id": "plan_1"}
+            service, "plan_trip", new=AsyncMock(return_value={"status": "completed", "thread_id": "plan_1"})
         ):
-            start_result = service.start_conversation(
+            start_result = asyncio.run(service.start_conversation(
                 "Plan a trip from Miami on 2026-08-15"
-            )
+            ))
             self.assertEqual(start_result["status"], "collecting")
 
-            continue_result = service.continue_conversation(
+            continue_result = asyncio.run(service.continue_conversation(
                 "conversation_4", "Destination is New York"
-            )
+            ))
 
         self.assertEqual(continue_result["status"], "completed")
         self.assertEqual(continue_result["plan_result"]["thread_id"], "plan_1")
@@ -135,33 +142,33 @@ class TestConversationService(unittest.TestCase):
             "event_date": "2026-08-15",
         }
 
-        with patch.object(service, "_get_graph", return_value=stub_graph), patch.object(
+        with patch.object(service, "_get_graph", new=_mock_get_graph(stub_graph)), patch.object(
             service, "_generate_thread_id", return_value="conversation_5"
         ), patch.object(
             service, "request_parser_agent", side_effect=[parsed_start, parsed_date]
         ), patch.object(
-            service, "plan_trip", return_value={"status": "completed", "thread_id": "plan_5"}
+            service, "plan_trip", new=AsyncMock(return_value={"status": "completed", "thread_id": "plan_5"})
         ):
             # 1. Start with "Plan a trip to New York"
-            start_result = service.start_conversation("Plan a trip to New York")
+            start_result = asyncio.run(service.start_conversation("Plan a trip to New York"))
             self.assertEqual(start_result["status"], "collecting")
             self.assertEqual(start_result["missing_fields"], ["origin", "event_date"])
             self.assertEqual(start_result["state"]["destination"], "New York")
             self.assertEqual(start_result["state"]["origin"], "")
 
             # 2. Reply "Miami"
-            continue_result_1 = service.continue_conversation(
+            continue_result_1 = asyncio.run(service.continue_conversation(
                 "conversation_5", "Miami"
-            )
+            ))
             self.assertEqual(continue_result_1["status"], "collecting")
             self.assertEqual(continue_result_1["missing_fields"], ["event_date"])
             self.assertEqual(continue_result_1["state"]["origin"], "Miami")
             self.assertEqual(continue_result_1["state"]["destination"], "New York")
 
             # 3. Reply "August 15 2026"
-            continue_result_2 = service.continue_conversation(
+            continue_result_2 = asyncio.run(service.continue_conversation(
                 "conversation_5", "August 15 2026"
-            )
+            ))
             
             self.assertEqual(continue_result_2["status"], "completed")
             self.assertEqual(continue_result_2["state"]["origin"], "Miami")

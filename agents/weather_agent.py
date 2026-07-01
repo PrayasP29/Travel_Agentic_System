@@ -14,7 +14,7 @@ def _last_message_content(response: dict) -> str:
     return getattr(messages[-1], "content", "") or ""
 
 
-def weather_agent(state: dict) -> dict:
+async def weather_agent(state: dict) -> dict:
     """Use a LangChain agent to decide whether weather lookup is needed."""
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
@@ -23,7 +23,7 @@ def weather_agent(state: dict) -> dict:
         destination = updated_state.get("destination")
         event_date = updated_state.get("event_date")
 
-        weather_result = get_weather(destination=destination, event_date=event_date)
+        weather_result = await get_weather(destination=destination, event_date=event_date)
         updated_state["weather_details"] = weather_result
         if weather_result.get("status") != "success":
             updated_state["weather_status"] = "failed"
@@ -78,7 +78,7 @@ def weather_agent(state: dict) -> dict:
             f"Weather Data:\n{weather_result}"
         )
 
-        response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+        response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
         weather_notes = _last_message_content(response)
 
         updated_state["weather_notes"] = (

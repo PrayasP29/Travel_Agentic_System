@@ -18,12 +18,12 @@ router = APIRouter(prefix="/api/trips", tags=["Trip Planning"])
 _GRAPH_INSTANCE = None
 
 
-def _get_graph():
+async def _get_graph():
     global _GRAPH_INSTANCE
     if _GRAPH_INSTANCE is None:
         from graph.trip_graph import build_trip_graph
 
-        _GRAPH_INSTANCE = build_trip_graph()
+        _GRAPH_INSTANCE = await build_trip_graph()
     return _GRAPH_INSTANCE
 
 
@@ -112,7 +112,7 @@ def health_check() -> HealthResponse:
         },
     },
 )
-def plan_trip(
+async def plan_trip(
     body: TripPlanRequest = Body(...),
 ) -> TripPlanResponse:
     if body.sentence:
@@ -134,7 +134,8 @@ def plan_trip(
 
     try:
         logger.info(f"thread_id={thread_id} origin={parsed.get('origin')} destination={destination} | Invoking graph")
-        result = _get_graph().invoke(
+        graph = await _get_graph()
+        result = await graph.ainvoke(
             state,
             config={"configurable": {"thread_id": thread_id}},
         )
@@ -152,7 +153,7 @@ def plan_trip(
         logger.error(f"thread_id={thread_id} | Graph returned unexpected type: {type(result)}")
         return TripPlanResponse(
             success=False,
-            report="Graph returned unexpected result type",
+            report="Graph returned unexpected type",
             itinerary="",
             destination=destination,
             event_date=event_date,
@@ -215,7 +216,7 @@ def plan_trip(
         },
     },
 )
-def get_trip_state(
+async def get_trip_state(
     thread_id: str = Path(
         ...,
         title="Trip thread ID",
@@ -225,7 +226,7 @@ def get_trip_state(
     ),
 ) -> TripStateResponse:
     try:
-        state = load_trip_checkpoint(thread_id)
+        state = await load_trip_checkpoint(thread_id)
     except Exception:
         return TripStateResponse(
             thread_id=thread_id, status="not_found", state={}
@@ -282,7 +283,7 @@ def get_trip_state(
         },
     },
 )
-def resume_trip_execution(
+async def resume_trip_execution(
     thread_id: str = Path(
         ...,
         title="Trip thread ID",
@@ -292,7 +293,7 @@ def resume_trip_execution(
     ),
 ) -> TripStateResponse:
     try:
-        current = load_trip_checkpoint(thread_id)
+        current = await load_trip_checkpoint(thread_id)
     except Exception:
         return TripStateResponse(
             thread_id=thread_id, status="not_found", state={}
@@ -313,7 +314,8 @@ def resume_trip_execution(
         )
 
     try:
-        result = _get_graph().invoke(
+        graph = await _get_graph()
+        result = await graph.ainvoke(
             current,
             config={"configurable": {"thread_id": thread_id}},
         )
