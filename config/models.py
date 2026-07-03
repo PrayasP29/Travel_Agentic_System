@@ -1,5 +1,6 @@
 """Groq model helpers for text generation and audio transcription."""
 
+import time
 from pathlib import Path
 from typing import Union
 
@@ -11,16 +12,49 @@ from config.settings import settings
 AudioPath = Union[str, Path]
 
 
+_LLM_CALL_COUNTER = 0
+
+
 def get_text_llm() -> ChatGroq:
     """Create the LangChain chat model backed by Groq."""
+    global _LLM_CALL_COUNTER
+    _LLM_CALL_COUNTER += 1
+    call_id = _LLM_CALL_COUNTER
     if not settings.groq_api_key:
         raise ValueError("GROQ_API_KEY is required to initialize the text LLM.")
 
-    return ChatGroq(
+    llm = ChatGroq(
         api_key=settings.groq_api_key,
         model=settings.groq_text_model,
         temperature=0.2,
     )
+
+    if hasattr(llm, '_agenerate') and callable(llm._agenerate):
+        original_agenerate = llm._agenerate
+
+        async def _timed_agenerate(messages, *args, **kwargs):
+            _t0 = time.perf_counter()
+            try:
+                return await original_agenerate(messages, *args, **kwargs)
+            finally:
+                elapsed = time.perf_counter() - _t0
+                print(f"[LLM] ChatGroq._agenerate #{call_id} took {elapsed:.3f}s")
+
+        llm._agenerate = _timed_agenerate
+    elif hasattr(llm, '_generate') and callable(llm._generate):
+        original_generate = llm._generate
+
+        async def _timed_generate(messages, *args, **kwargs):
+            _t0 = time.perf_counter()
+            try:
+                return await original_generate(messages, *args, **kwargs)
+            finally:
+                elapsed = time.perf_counter() - _t0
+                print(f"[LLM] ChatGroq._generate #{call_id} took {elapsed:.3f}s")
+
+        llm._generate = _timed_generate
+
+    return llm
 
 
 def get_groq_client() -> Groq:

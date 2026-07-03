@@ -1,6 +1,7 @@
 
 """Itinerary agent that turns gathered data into a draft trip plan."""
 
+import time
 from langchain.agents import create_agent
 
 from config.models import get_text_llm
@@ -70,6 +71,8 @@ Local Planning Notes:
 
 def itinerary_agent(state: dict) -> dict:
     """Create a concise itinerary using flights, hotels, weather, and search output."""
+    _timer_start = time.time()
+    print(f"[TIMER] itinerary_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -168,4 +171,5 @@ def itinerary_agent(state: dict) -> dict:
         updated_state["status"] = "failed"
 
     updated_state["errors"] = errors
+    print(f"[TIMER] itinerary_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state

@@ -1,5 +1,6 @@
 """Weather agent for retrieving and summarizing forecast details."""
 
+import time
 from langchain.agents import create_agent
 
 from config.models import get_text_llm
@@ -16,6 +17,8 @@ def _last_message_content(response: dict) -> str:
 
 async def weather_agent(state: dict) -> dict:
     """Use a LangChain agent to decide whether weather lookup is needed."""
+    _timer_start = time.time()
+    print(f"[TIMER] weather_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -32,6 +35,7 @@ async def weather_agent(state: dict) -> dict:
                 f"{weather_result.get('error', 'Unknown error')}"
             )
             updated_state["errors"] = errors
+            print(f"[TIMER] weather_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
             return updated_state
 
         agent = create_agent(
@@ -92,4 +96,5 @@ async def weather_agent(state: dict) -> dict:
         updated_state["weather_status"] = "failed"
 
     updated_state["errors"] = errors
+    print(f"[TIMER] weather_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state

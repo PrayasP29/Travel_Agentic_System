@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import traceback
 from typing import Any
 
@@ -228,6 +229,7 @@ async def _run_search(payload: dict) -> dict:
 
 async def search_local_places(destination: str, venue: str | None = None) -> dict:
     """Search local places using the Agentorist MCP tool."""
+    _t0 = time.perf_counter()
     if not destination:
         return {
             "status": "error",
@@ -245,7 +247,11 @@ async def search_local_places(destination: str, venue: str | None = None) -> dic
         "agent_client": "TripPlanner",
     }
 
-    return await _run_search(payload)
+    _t1 = time.perf_counter()
+    result = await _run_search(payload)
+    _t2 = time.perf_counter()
+    print(f"[TOOL] search_local_places took {_t2-_t1:.3f}s (total call: {_t2-_t0:.3f}s)")
+    return result
 
 
 async def search_hotels(destination: str) -> dict:

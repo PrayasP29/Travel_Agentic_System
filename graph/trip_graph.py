@@ -1,8 +1,12 @@
 """LangGraph workflow for the multi-agent trip planner."""
 
 import inspect
+import time
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Send
+
+
 
 from agents.coordinator import coordinator_agent
 from agents.flight_agent import flight_agent
@@ -27,6 +31,7 @@ _AGENT_EXECUTION_ORDER = [
 
 # Map every possible return value from the routing functions to the
 # corresponding registered node name.
+
 _ALL_AGENT_ROUTES = {
     "flight_agent":   "flight_agent",
     "hotel_agent":    "hotel_agent",
@@ -37,13 +42,24 @@ _ALL_AGENT_ROUTES = {
 }
 
 
-def _route_from_supervisor(state: TripPlannerState) -> str:
-    """After the supervisor, route to the first agent that needs to run."""
+def _route_from_supervisor(state: TripPlannerState):
+    """After the supervisor, fan out to all enabled parallel agents via Send(),
+    or route directly to itinerary_agent if none are enabled."""
     plan = state.get("execution_plan", {})
-    for agent in _AGENT_EXECUTION_ORDER:
-        if plan.get(f"run_{agent}", False):
-            return agent
-    return "itinerary_agent"
+    sends = []
+    if plan.get("run_flight_agent"):
+        sends.append(Send("flight_agent", state))
+    if plan.get("run_hotel_agent"):
+        sends.append(Send("hotel_agent", state))
+    if plan.get("run_weather_agent"):
+        sends.append(Send("weather_agent", state))
+    if plan.get("run_search_agent"):
+        sends.append(Send("search_agent", state))
+    if plan.get("run_local_agent"):
+        sends.append(Send("local_agent", state))
+    if not sends:
+        return "itinerary_agent"
+    return sends
 
 
 def _make_route_after(after: str):
@@ -71,12 +87,42 @@ async def build_trip_graph(*, checkpointer=None):
     def _run_with_debug(name, fn):
         if inspect.iscoroutinefunction(fn):
             async def _wrapped(state: dict):
-                print(f"RUNNING NODE: {name}")
-                return await fn(state)
+                _t_entry = time.perf_counter()
+                print(f"[GRAPH] NODE ENTER: {name} t={_t_entry:.3f}")
+                _t_fn = time.perf_counter()
+                result = await fn(state)
+                _t_fn_done = time.perf_counter()
+                fn_time = _t_fn_done - _t_fn
+                if isinstance(result, dict) and isinstance(state, dict):
+                    diff = {k: v for k, v in result.items()
+                            if k not in state or state[k] != v}
+                else:
+                    diff = result
+                _t_exit = time.perf_counter()
+                overhead = _t_exit - _t_fn_done
+                total = _t_exit - _t_entry
+                print(f"[GRAPH] NODE EXIT: {name} t={_t_exit:.3f} "
+                      f"fn={fn_time:.3f}s overhead={overhead:.3f}s total={total:.3f}s")
+                return diff
         else:
             def _wrapped(state: dict):
-                print(f"RUNNING NODE: {name}")
-                return fn(state)
+                _t_entry = time.perf_counter()
+                print(f"[GRAPH] NODE ENTER: {name} t={_t_entry:.3f}")
+                _t_fn = time.perf_counter()
+                result = fn(state)
+                _t_fn_done = time.perf_counter()
+                fn_time = _t_fn_done - _t_fn
+                if isinstance(result, dict) and isinstance(state, dict):
+                    diff = {k: v for k, v in result.items()
+                            if k not in state or state[k] != v}
+                else:
+                    diff = result
+                _t_exit = time.perf_counter()
+                overhead = _t_exit - _t_fn_done
+                total = _t_exit - _t_entry
+                print(f"[GRAPH] NODE EXIT: {name} t={_t_exit:.3f} "
+                      f"fn={fn_time:.3f}s overhead={overhead:.3f}s total={total:.3f}s")
+                return diff
 
         return _wrapped
 
@@ -110,13 +156,12 @@ async def build_trip_graph(*, checkpointer=None):
         _ALL_AGENT_ROUTES,
     )
 
-    # ── Conditional edges from each specialist agent ───────────────────
-    for agent in _AGENT_EXECUTION_ORDER:
-        graph.add_conditional_edges(
-            agent,
-            _make_route_after(agent),
-            _ALL_AGENT_ROUTES,
-        )
+    # ── Fan-in edges: all parallel agents converge on itinerary_agent ──
+    graph.add_edge("flight_agent", "itinerary_agent")
+    graph.add_edge("hotel_agent", "itinerary_agent")
+    graph.add_edge("weather_agent", "itinerary_agent")
+    graph.add_edge("search_agent", "itinerary_agent")
+    graph.add_edge("local_agent", "itinerary_agent")
 
     # ── Persistence ────────────────────────────────────────────────────
     if checkpointer is None:

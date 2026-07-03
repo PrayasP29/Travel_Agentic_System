@@ -35,29 +35,31 @@ class TestParallelRouting(unittest.TestCase):
             "run_local_agent": True,
         }
 
-    def test_all_three_enabled_returns_three_sends(self):
-        """When all three parallel agents are enabled, _route_from_supervisor
-        returns a list of 3 Send objects."""
+    def test_all_five_enabled_returns_five_sends(self):
+        """When all five agents are enabled, _route_from_supervisor
+        returns a list of 5 Send objects."""
         result = _route_from_supervisor({"execution_plan": self.all_enabled})
         self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 3)
+        self.assertEqual(len(result), 5)
         names = {s.node for s in result}
-        self.assertEqual(names, {"flight_agent", "hotel_agent", "weather_agent"})
+        self.assertEqual(names, {"flight_agent", "hotel_agent", "weather_agent",
+                                 "search_agent", "local_agent"})
 
-    def test_none_enabled_returns_string_search_agent(self):
-        """When none of the parallel agents are enabled, route directly
-        to search_agent."""
+    def test_none_enabled_returns_string_itinerary_agent(self):
+        """When none of the agents are enabled, route directly
+        to itinerary_agent."""
         result = _route_from_supervisor({"execution_plan": self.none_enabled})
         self.assertIsInstance(result, str)
-        self.assertEqual(result, "search_agent")
+        self.assertEqual(result, "itinerary_agent")
 
     def test_partial_enabled_returns_only_enabled_sends(self):
-        """When only flight and weather are enabled, returns 2 Send objects."""
+        """When flight, weather, search, and local are enabled, returns 4 Send objects."""
         result = _route_from_supervisor({"execution_plan": self.partial_enabled})
         self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(len(result), 4)
         names = {s.node for s in result}
-        self.assertEqual(names, {"flight_agent", "weather_agent"})
+        self.assertEqual(names, {"flight_agent", "weather_agent",
+                                 "search_agent", "local_agent"})
 
     def test_route_after_search_routes_to_local(self):
         """_make_route_after('search_agent') returns 'local_agent' when local

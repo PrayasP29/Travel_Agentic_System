@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 
 from langchain.agents import create_agent
 
@@ -9,6 +10,31 @@ from config.models import get_text_llm
 from tools.flight_tools import search_flights
 
 DEBUG = False
+
+
+def _normalize_flight(it: dict) -> dict:
+    """Normalize new Kiwi nested structure to flat format if needed."""
+    if "outbound" in it:
+        out = it["outbound"]
+        norm = dict(it)
+        norm["flyFrom"] = out.get("from", it.get("flyFrom", "Unknown"))
+        norm["flyTo"] = out.get("to", it.get("flyTo", "Unknown"))
+        norm["cityFrom"] = out.get("from", it.get("cityFrom", ""))
+        norm["cityTo"] = out.get("to", it.get("cityTo", ""))
+        norm["departure"] = {"local": out.get("departureTime", "")}
+        norm["arrival"] = {"local": out.get("arrivalTime", "")}
+        if "bookingUrl" in it and not norm.get("deepLink"):
+            norm["deepLink"] = it["bookingUrl"]
+        segments = out.get("segments", [])
+        if segments:
+            norm["segments"] = segments
+            if len(segments) > 1:
+                norm["layovers"] = [
+                    {"city": s.get("to", ""), "airport": s.get("to", "")}
+                    for i, s in enumerate(segments[:-1])
+                ]
+        return norm
+    return it
 
 
 def parse_flight_data(flight_result: dict) -> list:
@@ -22,7 +48,7 @@ def parse_flight_data(flight_result: dict) -> list:
         if structured:
             itineraries = structured.get("itineraries")
             if itineraries:
-                return itineraries
+                return [_normalize_flight(it) for it in itineraries]
 
         content_list = data.get("content", [])
         for content in content_list:
@@ -31,11 +57,11 @@ def parse_flight_data(flight_result: dict) -> list:
                 if text:
                     parsed = json.loads(text)
                     if isinstance(parsed, list):
-                        return parsed
+                        return [_normalize_flight(it) for it in parsed]
                     if isinstance(parsed, dict):
                         itineraries = parsed.get("itineraries")
                         if itineraries:
-                            return itineraries
+                            return [_normalize_flight(it) for it in itineraries]
     except Exception:
         pass
     return []
@@ -144,6 +170,8 @@ def _format_flight_notes(flights_list: list, fallback_notes: str) -> str:
 
 async def flight_agent(state: dict) -> dict:
     """Run deterministic flight search, then summarize results."""
+    _timer_start = time.time()
+    print(f"[TIMER] flight_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -185,6 +213,7 @@ async def flight_agent(state: dict) -> dict:
             )
             updated_state["flight_status"] = "failed"
             updated_state["errors"] = errors
+            print(f"[TIMER] flight_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
             return updated_state
 
         flights_list = parse_flight_data(flight_result)
@@ -301,4 +330,5 @@ async def flight_agent(state: dict) -> dict:
         updated_state["flight_status"]  = "failed"
 
     updated_state["errors"] = errors
+    print(f"[TIMER] flight_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state

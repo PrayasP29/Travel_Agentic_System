@@ -27,7 +27,7 @@ def search_web(query: str, max_results: int = 5) -> dict[str, Any]:
     for attempt in range(1, retries + 1):
         try:
             logger.info("Running Tavily search. attempt=%s query=%s", attempt, query)
-            response = client.search(query=query, max_results=max_results)
+            response = client.search(query=query, max_results=max_results, timeout=15)
 
             return {
                 "query": query,

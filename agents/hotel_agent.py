@@ -1,5 +1,6 @@
 """Hotel agent for summarizing hotel search results."""
 
+import time
 from langchain.agents import create_agent
 
 from config.models import get_text_llm
@@ -81,6 +82,8 @@ def _format_hotel_notes(results: list, agent_notes: str) -> str:
 
 async def hotel_agent(state: dict) -> dict:
     """Use a LangChain agent to recommend hotels grounded in MCP data only."""
+    _timer_start = time.time()
+    print(f"[TIMER] hotel_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -102,6 +105,7 @@ async def hotel_agent(state: dict) -> dict:
                 f"{hotel_result.get('error', 'Unknown error')}"
             )
             updated_state["errors"] = errors
+            print(f"[TIMER] hotel_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
             return updated_state
 
         # Extract real fields directly from MCP results — no estimation
@@ -210,4 +214,5 @@ async def hotel_agent(state: dict) -> dict:
         updated_state["hotel_status"]  = "failed"
 
     updated_state["errors"] = errors
+    print(f"[TIMER] hotel_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state

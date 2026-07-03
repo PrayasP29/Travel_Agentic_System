@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -25,6 +26,22 @@ def _path_from_sqlite_uri(conn_string: str) -> Path | None:
         raw_path = raw_path[1:]
 
     return Path(raw_path)
+
+
+_original_aput = AsyncSqliteSaver.aput
+
+
+async def _timed_aput(self, *args, **kwargs):
+    _t0 = time.perf_counter()
+    try:
+        return await _original_aput(self, *args, **kwargs)
+    finally:
+        elapsed = time.perf_counter() - _t0
+        if elapsed > 0.05:
+            print(f"[CHECKPOINT] aput took {elapsed:.3f}s")
+
+
+AsyncSqliteSaver.aput = _timed_aput
 
 
 async def get_checkpointer(db_path: Path | str | None = None) -> AsyncSqliteSaver:
