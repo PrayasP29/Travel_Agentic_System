@@ -1,19 +1,33 @@
 import uuid
+from uuid import UUID
 
-from fastapi import APIRouter, Body, Path
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.log_config import logger
 from agents.request_parser_agent import request_parser_agent
 from backend.api.schemas.request import TripPlanRequest
 from backend.api.schemas.response import (
     HealthResponse,
+    TripDetailResponse,
+    TripHistoryItem,
     TripPlanResponse,
     TripStateResponse,
 )
 from services.trip_planner_service import resume_trip as load_trip_checkpoint
 from utils.state_builder import build_trip_state
+from auth.dependencies import get_current_active_user
+from database.connection import get_db
+from database.crud import (
+    create_trip,
+    get_trip_by_id,
+    get_trip_by_thread_id,
+    get_user_trips,
+    update_trip_status,
+)
+from database.models import User
 
-router = APIRouter(prefix="/api/trips", tags=["Trip Planning"])
+router = APIRouter(prefix="/trips", tags=["Trip Planning"])
 
 _GRAPH_INSTANCE = None
 
@@ -114,6 +128,8 @@ def health_check() -> HealthResponse:
 )
 async def plan_trip(
     body: TripPlanRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ) -> TripPlanResponse:
     if body.sentence:
         logger.info(f"Parsing natural-language request: {body.sentence!r}")
@@ -130,7 +146,19 @@ async def plan_trip(
     event_date = parsed.get("event_date", "")
 
     state = build_trip_state(parsed)
-    thread_id = f"api_trip_{uuid.uuid4().hex}"
+    thread_id = f"{current_user.id}-{uuid.uuid4().hex}"
+
+    trip = await create_trip(
+        db,
+        user_id=current_user.id,
+        request_text=body.sentence or f"Trip from {parsed.get('origin', '')} to {parsed.get('destination', '')}",
+        origin=parsed.get("origin", ""),
+        destination=parsed.get("destination", ""),
+        event_date=parsed.get("event_date", ""),
+        venue=parsed.get("venue", ""),
+        travelers=parsed.get("travelers", 1),
+        thread_id=thread_id,
+    )
 
     try:
         logger.info(f"thread_id={thread_id} origin={parsed.get('origin')} destination={destination} | Invoking graph")
@@ -141,23 +169,36 @@ async def plan_trip(
         )
     except Exception as exc:
         logger.exception(f"thread_id={thread_id} | Graph execution failed: {exc}")
+        await update_trip_status(db, trip_id=trip.id, status="failed")
         return TripPlanResponse(
             success=False,
             report=f"Graph execution failed: {exc}",
             itinerary="",
             destination=destination,
             event_date=event_date,
+            trip_id=trip.id,
+            thread_id=thread_id,
         )
 
     if not isinstance(result, dict):
         logger.error(f"thread_id={thread_id} | Graph returned unexpected type: {type(result)}")
+        await update_trip_status(db, trip_id=trip.id, status="failed")
         return TripPlanResponse(
             success=False,
             report="Graph returned unexpected type",
             itinerary="",
             destination=destination,
             event_date=event_date,
+            trip_id=trip.id,
+            thread_id=thread_id,
         )
+
+    await update_trip_status(
+        db,
+        trip_id=trip.id,
+        status="completed",
+        final_state=result,
+    )
 
     status = result.get("status", "unknown")
     logger.info(
@@ -175,73 +216,66 @@ async def plan_trip(
         itinerary=itinerary,
         destination=destination,
         event_date=event_date,
+        trip_id=trip.id,
+        thread_id=thread_id,
     )
 
 
 @router.get(
-    "/{thread_id}",
-    response_model=TripStateResponse,
-    summary="Get trip state by thread ID",
-    description=(
-        "Retrieves the persisted internal state of a previously executed "
-        "trip-planning run using its unique thread identifier."
-    ),
-    responses={
-        200: {
-            "description": "State retrieved successfully (may be empty if thread not found)",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "thread_id": "api_trip_a1b2c3d4e5f6",
-                        "status": "completed",
-                        "state": {
-                            "destination": "EWR",
-                            "status": "completed",
-                        },
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "Thread ID not found in persistence store",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "thread_id": "api_trip_nonexistent",
-                        "status": "not_found",
-                        "state": {},
-                    }
-                }
-            },
-        },
-    },
+    "/history",
+    response_model=list[TripHistoryItem],
+    summary="List trips for current user",
+    description="Returns a paginated list of trips belonging to the authenticated user, ordered by creation date descending.",
 )
-async def get_trip_state(
-    thread_id: str = Path(
+async def list_trips(
+    limit: int = Query(default=20, ge=1, le=50, description="Number of trips to return."),
+    offset: int = Query(default=0, ge=0, description="Number of trips to skip."),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TripHistoryItem]:
+    trips = await get_user_trips(db, current_user.id, limit=limit, offset=offset)
+    return [TripHistoryItem.model_validate(t) for t in trips]
+
+
+@router.get(
+    "/{identifier}",
+    response_model=TripDetailResponse | TripStateResponse,
+    summary="Get trip detail by ID or state by thread ID",
+    description=(
+        "If the identifier is a valid UUID, returns the full trip record "
+        "(authenticated). Otherwise returns the persisted LangGraph workflow state."
+    ),
+)
+async def get_trip_or_state(
+    identifier: str = Path(
         ...,
-        title="Trip thread ID",
-        description="Unique thread identifier assigned to a trip-planning workflow.",
-        examples=["api_trip_a1b2c3d4e5f6"],
+        title="Trip ID or thread ID",
+        description="UUID of the trip record or string thread identifier.",
         min_length=1,
     ),
-) -> TripStateResponse:
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripDetailResponse | TripStateResponse:
     try:
-        state = await load_trip_checkpoint(thread_id)
-    except Exception:
+        trip_id = UUID(identifier)
+    except ValueError:
+        state = await load_trip_checkpoint(identifier)
+        if not isinstance(state, dict):
+            return TripStateResponse(
+                thread_id=identifier, status="not_found", state={}
+            )
         return TripStateResponse(
-            thread_id=thread_id, status="not_found", state={}
+            thread_id=identifier,
+            status=state.get("status", "unknown"),
+            state=state,
         )
 
-    if not isinstance(state, dict):
-        return TripStateResponse(
-            thread_id=thread_id, status="unknown", state={}
-        )
-
-    return TripStateResponse(
-        thread_id=thread_id,
-        status=state.get("status", "unknown"),
-        state=state,
-    )
+    trip = await get_trip_by_id(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    if str(trip.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return TripDetailResponse.model_validate(trip)
 
 
 @router.post(
@@ -253,35 +287,6 @@ async def get_trip_state(
         "from its last persisted checkpoint. "
         "If the run has already completed or failed, the current state is returned as-is."
     ),
-    responses={
-        200: {
-            "description": "Trip resumed and state returned",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "thread_id": "api_trip_a1b2c3d4e5f6",
-                        "status": "completed",
-                        "state": {
-                            "destination": "EWR",
-                            "status": "completed",
-                        },
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "Thread ID not found",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "thread_id": "api_trip_nonexistent",
-                        "status": "not_found",
-                        "state": {},
-                    }
-                }
-            },
-        },
-    },
 )
 async def resume_trip_execution(
     thread_id: str = Path(
@@ -291,7 +296,13 @@ async def resume_trip_execution(
         examples=["api_trip_a1b2c3d4e5f6"],
         min_length=1,
     ),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ) -> TripStateResponse:
+    trip = await get_trip_by_thread_id(db, thread_id)
+    if not trip or str(trip.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     try:
         current = await load_trip_checkpoint(thread_id)
     except Exception:
@@ -320,22 +331,25 @@ async def resume_trip_execution(
             config={"configurable": {"thread_id": thread_id}},
         )
     except Exception as exc:
+        await update_trip_status(db, trip_id=trip.id, status="failed")
         return TripStateResponse(
             thread_id=thread_id,
             status="failed",
             state=current,
         )
-    except BaseException as exc:
-        return TripStateResponse(
-            thread_id=thread_id,
-            status="failed",
-            state={"error": str(exc)},
-        )
 
     if not isinstance(result, dict):
+        await update_trip_status(db, trip_id=trip.id, status="failed")
         return TripStateResponse(
             thread_id=thread_id, status="unknown", state={}
         )
+
+    await update_trip_status(
+        db,
+        trip_id=trip.id,
+        status="completed",
+        final_state=result,
+    )
 
     return TripStateResponse(
         thread_id=thread_id,

@@ -1,3 +1,6 @@
+from datetime import datetime
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -42,6 +45,16 @@ class TripPlanResponse(BaseModel):
         title="Event Date",
         description="Travel date in YYYY-MM-DD format from the original request.",
         examples=["2026-07-15"],
+    )
+    trip_id: UUID | None = Field(
+        default=None,
+        title="Trip ID",
+        description="Database primary key of the created trip record.",
+    )
+    thread_id: str | None = Field(
+        default=None,
+        title="Thread ID",
+        description="LangGraph thread identifier for the planning session.",
     )
 
     model_config = {
@@ -119,3 +132,42 @@ class TripStateResponse(BaseModel):
             ]
         }
     }
+
+
+class TripHistoryItem(BaseModel):
+    """Lightweight trip record returned in the history list (no report body)."""
+
+    id: UUID = Field(title="Trip ID", description="Database primary key.")
+    request_text: str | None = Field(title="Request text", description="Original user request.")
+    origin: str | None = Field(title="Origin", description="Departure location.")
+    destination: str | None = Field(title="Destination", description="Arrival location.")
+    status: str = Field(title="Status", description="Current trip status.")
+    created_at: datetime | None = Field(title="Created at", description="When the trip was created.")
+    completed_at: datetime | None = Field(title="Completed at", description="When the trip finished.")
+
+    class Config:
+        from_attributes = True
+
+
+class TripDetailResponse(BaseModel):
+    """Full trip record including agent outputs."""
+
+    id: UUID = Field(title="Trip ID")
+    user_id: UUID = Field(title="User ID")
+    request_text: str | None = Field(title="Request text")
+    origin: str | None = Field(title="Origin")
+    destination: str | None = Field(title="Destination")
+    event_date: str | None = Field(title="Event date")
+    venue: str | None = Field(title="Venue")
+    travelers: int = Field(default=1, title="Travelers")
+    status: str = Field(title="Status")
+    final_report: str | None = Field(title="Final report", description="Markdown travel report.")
+    flight_details: dict | None = Field(title="Flight details")
+    hotel_details: dict | None = Field(title="Hotel details")
+    weather_details: dict | None = Field(title="Weather details")
+    thread_id: str | None = Field(title="Thread ID")
+    created_at: datetime | None = Field(title="Created at")
+    completed_at: datetime | None = Field(title="Completed at")
+
+    class Config:
+        from_attributes = True

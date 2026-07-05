@@ -1,79 +1,78 @@
 # Python
-
-**pycache**/
+__pycache__/
 *.py[cod]
-*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
 
-# Virtual Environments
-
+# Virtual environment
 .venv/
 venv/
 env/
 
-# Environment Variables
-
+# Environment variables (NEVER commit)
 .env
-.env.*
 
-# Jupyter
+# Database files
+*.db
+*.sqlite
+*.sqlite3
 
-.ipynb_checkpoints/
-
-# Build
-
-build/
-dist/
-*.egg-info/
+# LangGraph SQLite checkpointer files
+*.db-shm
+*.db-wal
 
 # Logs
-
 logs/
 *.log
 
 # Outputs
-
 outputs/
 
 # Recordings
-
 recordings/
 
 # Audio Files
-
 *.wav
 *.mp3
 *.m4a
 
 # Data Exports
-
 *.csv
 *.xlsx
 *.parquet
 
 # Coverage
-
 .coverage
 htmlcov/
 .pytest_cache/
 
 # VS Code
-
 .vscode/
 
-# LangSmith / LangGraph
+# JetBrains IDEs
+.idea/
 
+# LangSmith / LangGraph
 .langgraph_api/
 .langsmith/
 
 # OS Files
-
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Temporary Files
-
 *.tmp
 *.temp
+
+# Vim swap files
+*.swp
+*.swo
 
 # Cached API/MCP responses
 data/*.json
@@ -82,17 +81,25 @@ data/*.json
 !data/.gitkeep
 !data/README.md
 
-_debug_agents.py
-_debug_checkpointer.py
-_debug_trace.py
-_repro.py
-# Temporary diagnostic/debug scripts
+# Notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Alembic pycache
+alembic/__pycache__/
+
+# Diagnostic and one-off scripts (not part of core project)
 diagnose_phase5.py
 run_search_flights_diag.py
 run_timing.py
+verify_phase_a.py
+test_parallel.py
+
+# Generated reports (not source code)
+result.md
+
+# Debug/scratch scripts
 _debug_agents.py
 _debug_checkpointer.py
 _debug_trace.py
 _repro.py
-verify_phase_a.py
-test_parallel.py

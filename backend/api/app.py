@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.api.log_config import logger, request_id_var
+from backend.api.routes.auth import router as auth_router
 from backend.api.routes.trips import router as trips_router
+from database.connection import create_tables
 
 
 # ---------------------------------------------------------------------------
@@ -138,9 +140,15 @@ def create_app() -> FastAPI:
     app.add_exception_handler(HTTPException, _http_error_handler)
     app.add_exception_handler(Exception, _global_error_handler)
 
+    app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(trips_router)
 
     return app
 
 
 app = create_app()
+
+
+@app.on_event("startup")
+async def startup():
+    await create_tables()
