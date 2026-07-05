@@ -74,13 +74,6 @@ desktop.ini
 *.swp
 *.swo
 
-# Cached API/MCP responses
-data/*.json
-
-# Keep folder structure
-!data/.gitkeep
-!data/README.md
-
 # Notebook checkpoints
 .ipynb_checkpoints/
 *.ipynb_checkpoints/
@@ -88,14 +81,14 @@ data/*.json
 # Alembic pycache
 alembic/__pycache__/
 
-# Diagnostic and one-off scripts (not part of core project)
-diagnose_phase5.py
-run_search_flights_diag.py
-run_timing.py
-verify_phase_a.py
-test_parallel.py
+# Generated data (cached API responses, not source code)
+data/
 
-# Generated reports (not source code)
+# Diagnostic and one-off scripts (not part of core project)
+diagnose_*.py
+run_*.py
+verify_*.py
+test_parallel.py
 result.md
 
 # Debug/scratch scripts
