@@ -1,3 +1,4 @@
+import hashlib
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -48,3 +49,7 @@ def decode_token(token: str) -> dict | None:
         return payload
     except JWTError:
         return None
+
+
+def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256((SECRET_KEY + token).encode()).hexdigest()

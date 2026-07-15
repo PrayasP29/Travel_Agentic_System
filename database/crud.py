@@ -5,7 +5,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import AsyncSessionLocal
-from database.models import Trip, User
+from database.models import Trip, User, RefreshToken
 from auth.security import hash_password
 
 
@@ -115,3 +115,40 @@ async def get_trip_by_id(db: AsyncSession, trip_id: UUID, user_id: UUID | None =
 async def get_trip_by_thread_id(db: AsyncSession, thread_id: str) -> Trip | None:
     result = await db.execute(select(Trip).where(Trip.thread_id == thread_id))
     return result.scalar_one_or_none()
+
+
+async def create_refresh_token(
+    db: AsyncSession,
+    user_id: UUID,
+    token_hash: str,
+    expires_at: datetime,
+    device_name: str | None = None,
+    ip_address: str | None = None,
+) -> RefreshToken:
+    refresh_token = RefreshToken(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        device_name=device_name,
+        ip_address=ip_address,
+    )
+    db.add(refresh_token)
+    await db.commit()
+    await db.refresh(refresh_token)
+    return refresh_token
+
+
+async def get_refresh_token_by_hash(db: AsyncSession, token_hash: str) -> RefreshToken | None:
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    )
+    return result.scalar_one_or_none()
+
+
+async def revoke_refresh_token(db: AsyncSession, token_id: UUID) -> None:
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.id == token_id)
+        .values(revoked_at=datetime.now(timezone.utc))
+    )
+    await db.commit()

@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     outputs_dir: str = "outputs"
     logs_dir: str = "logs"
 
+    # REDIS
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: str = ""
+    redis_default_ttl: int = 1800
+    redis_enabled: bool = True
+
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
         env_file_encoding="utf-8",

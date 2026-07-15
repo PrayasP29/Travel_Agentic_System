@@ -8,7 +8,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from database.connection import Base
-from database.models import User, Trip
+from database.models import User, Trip, RefreshToken
 
 config = context.config
 

@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from backend.api.log_config import logger, request_id_var
 from backend.api.routes.auth import router as auth_router
 from backend.api.routes.trips import router as trips_router
+from cache.redis_client import ping_redis
 from database.connection import create_tables
 
 
@@ -152,3 +153,8 @@ app = create_app()
 @app.on_event("startup")
 async def startup():
     await create_tables()
+    redis_ok = await ping_redis()
+    if redis_ok:
+        logger.info("Redis connected")
+    else:
+        logger.warning("Redis unavailable — caching disabled")

@@ -1,10 +1,27 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_current_active_user, get_current_user
-from auth.security import create_access_token, create_refresh_token, decode_token, verify_password
+from auth.security import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    REFRESH_TOKEN_EXPIRE_DAYS,
+    create_access_token,
+    create_refresh_token as generate_refresh_token,
+    decode_token,
+    hash_refresh_token,
+    verify_password,
+)
 from database.connection import get_db
-from database.crud import create_user, get_user_by_email, get_user_by_id
+from database.crud import (
+    create_refresh_token as store_refresh_token,
+    create_user,
+    get_refresh_token_by_hash,
+    get_user_by_email,
+    get_user_by_id,
+    revoke_refresh_token,
+)
 from database.models import User
 from backend.api.schemas.auth import Token, TokenRefresh, UserCreate, UserLogin, UserResponse
 
@@ -37,20 +54,46 @@ async def login(body: UserLogin, db: AsyncSession = Depends(get_db)):
             detail="Invalid email or password",
         )
     access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    refresh_token = generate_refresh_token(data={"sub": str(user.id)})
+    await store_refresh_token(
+        db,
+        user_id=user.id,
+        token_hash=hash_refresh_token(refresh_token),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh(body: TokenRefresh):
+async def refresh(body: TokenRefresh, db: AsyncSession = Depends(get_db)):
     payload = decode_token(body.refresh_token)
     if payload is None or payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
-    access_token = create_access_token(data={"sub": payload["sub"]})
-    return Token(access_token=access_token, refresh_token=body.refresh_token)
+    token_hash = hash_refresh_token(body.refresh_token)
+    db_token = await get_refresh_token_by_hash(db, token_hash)
+    if db_token is None or db_token.revoked_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token revoked or not found",
+        )
+    if db_token.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token expired",
+        )
+    new_access_token = create_access_token(data={"sub": payload["sub"]})
+    return Token(
+        access_token=new_access_token,
+        refresh_token=body.refresh_token,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
@@ -59,5 +102,13 @@ async def get_me(current_user: User = Depends(get_current_active_user)):
 
 
 @router.post("/logout")
-async def logout(current_user: User = Depends(get_current_active_user)):
+async def logout(
+    body: TokenRefresh,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    token_hash = hash_refresh_token(body.refresh_token)
+    db_token = await get_refresh_token_by_hash(db, token_hash)
+    if db_token and db_token.user_id == current_user.id:
+        await revoke_refresh_token(db, db_token.id)
     return {"message": "Logged out successfully"}
