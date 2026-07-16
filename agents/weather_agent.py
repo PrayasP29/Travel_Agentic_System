@@ -42,8 +42,7 @@ async def weather_agent(state: dict) -> dict:
         if weather_result.get("status") != "success":
             updated_state["weather_status"] = "failed"
             updated_state["weather_notes"] = (
-                "Weather retrieval failed: "
-                f"{weather_result.get('error', 'Unknown error')}"
+                weather_result.get("error", "Unknown error")
             )
             updated_state["errors"] = errors
             print(f"[TIMER] weather_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
@@ -108,7 +107,7 @@ async def weather_agent(state: dict) -> dict:
     except Exception as exc:
         errors.append(classify_error(exc, "weather"))
         updated_state["weather_details"] = updated_state.get("weather_details", {})
-        updated_state["weather_notes"] = "Weather lookup failed."
+        updated_state["weather_notes"] = classify_error(exc, "weather")
         updated_state["weather_status"] = "failed"
 
     updated_state["errors"] = errors

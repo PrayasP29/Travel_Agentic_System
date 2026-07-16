@@ -1,7 +1,10 @@
+import json
+import time
 import uuid
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.log_config import logger
@@ -235,6 +238,201 @@ async def plan_trip(
         event_date=event_date,
         trip_id=trip.id,
         thread_id=thread_id,
+    )
+
+
+@router.post(
+    "/plan/stream",
+    response_class=StreamingResponse,
+    summary="Plan a trip with real-time progress streaming",
+    description=(
+        "Same as POST /trips/plan but streams progress events via "
+        "Server-Sent Events instead of blocking until completion. "
+        "Progress events are emitted as each agent starts and completes. "
+        "The final event contains the same payload as TripPlanResponse."
+    ),
+)
+async def plan_trip_stream(
+    body: TripPlanRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    user_id = str(current_user.id)
+    await check_trip_failure_rate_limit(user_id)
+    await check_trip_quota(user_id)
+
+    if body.sentence:
+        logger.info(f"Parsing natural-language request: {body.sentence!r}")
+        parsed = request_parser_agent(body.sentence)
+    else:
+        parsed = {
+            "origin": body.origin,
+            "destination": body.destination,
+            "event_date": body.event_date,
+            "venue": body.venue,
+        }
+
+    destination = parsed.get("destination", "")
+    event_date = parsed.get("event_date", "")
+
+    state = build_trip_state(parsed)
+    thread_id = f"{current_user.id}-{uuid.uuid4().hex}"
+
+    trip = await create_trip(
+        db,
+        user_id=current_user.id,
+        request_text=body.sentence or f"Trip from {parsed.get('origin', '')} to {parsed.get('destination', '')}",
+        origin=parsed.get("origin", ""),
+        destination=parsed.get("destination", ""),
+        event_date=parsed.get("event_date", ""),
+        venue=parsed.get("venue", ""),
+        travelers=parsed.get("travelers", 1),
+        thread_id=thread_id,
+    )
+
+    _NODE_LABELS = {
+        "coordinator_agent": "Coordinator",
+        "supervisor_agent": "Supervisor",
+        "flight_agent": "Flight",
+        "hotel_agent": "Hotel",
+        "weather_agent": "Weather",
+        "search_agent": "Search",
+        "local_agent": "Local",
+        "itinerary_agent": "Itinerary",
+    }
+    _CACHEABLE = {"flight_agent", "hotel_agent", "weather_agent", "search_agent", "itinerary_agent"}
+    _STATUS_KEYS = {
+        "flight": "flight_status",
+        "hotel": "hotel_status",
+        "weather": "weather_status",
+        "search": "search_status",
+        "local": "local_status",
+        "itinerary": "itinerary_status",
+    }
+    _NOTES_KEYS = {
+        "flight": "flight_notes",
+        "hotel": "hotel_notes",
+        "weather": "weather_notes",
+        "search": "search_notes",
+        "local": "local_notes",
+    }
+
+    async def _event_generator():
+        def _sse(event_type: str, data: dict) -> str:
+            return f"event: {event_type}\ndata: {json.dumps(data, default=str)}\n\n"
+
+        yield _sse("progress", {"step": "request_received", "message": "Request received"})
+
+        node_times: dict[str, float] = {}
+        final_state: dict | None = None
+        accumulated: dict = dict(state)
+
+        try:
+            graph = await _get_graph()
+            async for event in graph.astream_events(
+                state,
+                config={"configurable": {"thread_id": thread_id}},
+                version="v2",
+            ):
+                kind = event.get("event", "")
+                name = event.get("name", "")
+                parent = event.get("parent_run_id")
+
+                if kind == "on_chain_end" and parent is None:
+                    final_state = event.get("data", {}).get("output")
+                    continue
+
+                if name not in _NODE_LABELS:
+                    continue
+
+                label = _NODE_LABELS[name]
+                ctx = name.replace("_agent", "")
+
+                if kind == "on_chain_start":
+                    node_times[name] = time.monotonic()
+                    yield _sse("progress", {
+                        "step": f"{label.lower()}_started",
+                        "message": f"{label} started",
+                    })
+
+                elif kind == "on_chain_end":
+                    elapsed = time.monotonic() - node_times.get(name, time.monotonic())
+                    output = event.get("data", {}).get("output", {})
+                    if isinstance(output, dict):
+                        accumulated.update({k: v for k, v in output.items() if k != "errors"})
+                        accumulated.setdefault("errors", []).extend(output.get("errors", []))
+
+                    status_key = _STATUS_KEYS.get(ctx)
+                    agent_status = accumulated.get(status_key) if status_key else None
+
+                    if agent_status == "failed":
+                        notes_key = _NOTES_KEYS.get(ctx)
+                        error_msg = accumulated.get(
+                            notes_key,
+                            classify_error(Exception("Agent failed"), ctx),
+                        )
+                        yield _sse("progress", {
+                            "step": f"{label.lower()}_failed",
+                            "message": error_msg,
+                        })
+                    elif name in _CACHEABLE and elapsed < 0.5:
+                        yield _sse("progress", {
+                            "step": f"{label.lower()}_cache_hit",
+                            "message": f"{label} → cache hit",
+                        })
+                    else:
+                        yield _sse("progress", {
+                            "step": f"{label.lower()}_completed",
+                            "message": f"{label} completed",
+                        })
+
+                elif kind == "on_chain_error":
+                    raw_err = event.get("data", {}).get("error", Exception("Agent failed"))
+                    if not isinstance(raw_err, Exception):
+                        raw_err = Exception(str(raw_err))
+                    yield _sse("progress", {
+                        "step": f"{label.lower()}_failed",
+                        "message": classify_error(raw_err, ctx),
+                    })
+
+        except Exception as exc:
+            yield _sse("error", {"message": classify_error(exc, "graph")})
+            await update_trip_status(db, trip_id=trip.id, status="failed")
+            await record_trip_failure(user_id)
+            return
+
+        result_state = final_state or accumulated
+
+        await update_trip_status(
+            db, trip_id=trip.id, status="completed", final_state=result_state,
+        )
+        await record_trip_success(user_id)
+        await reset_trip_failures(user_id)
+
+        logger.info(
+            f"thread_id={thread_id} status={result_state.get('status', 'unknown')} "
+            f"has_report={bool(result_state.get('final_report'))} "
+            f"has_itinerary={bool(result_state.get('itinerary'))} | Stream completed"
+        )
+
+        yield _sse("done", {
+            "success": True,
+            "report": result_state.get("final_report", ""),
+            "itinerary": result_state.get("itinerary", ""),
+            "destination": destination,
+            "event_date": event_date,
+            "trip_id": str(trip.id),
+            "thread_id": thread_id,
+        })
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

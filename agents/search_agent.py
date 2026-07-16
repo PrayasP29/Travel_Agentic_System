@@ -209,7 +209,7 @@ async def search_agent(state: dict) -> dict:
         errors.append(classify_error(exc, "search"))
         trace = locals().get("trace")
         updated_state["search_results"] = updated_state.get("search_results", {})
-        updated_state["search_notes"] = "Web search failed."
+        updated_state["search_notes"] = classify_error(exc, "search")
         updated_state["search_status"] = "failed"
 
     # ── Trace summary (always printed, even on failure) ─────────

@@ -72,7 +72,7 @@ async def local_agent(state: dict) -> dict:
     except Exception as exc:
         errors.append(classify_error(exc, "local"))
         updated_state["local_results"] = updated_state.get("local_results", {})
-        updated_state["local_notes"] = "Local discovery failed."
+        updated_state["local_notes"] = classify_error(exc, "local")
         updated_state["local_status"] = "failed"
         print(f"[PHASE] local_agent EXCEPTION: {exc}")
 

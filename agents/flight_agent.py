@@ -219,8 +219,7 @@ async def flight_agent(state: dict) -> dict:
         updated_state["flight_details"] = flight_result
         if flight_result.get("status") != "success":
             updated_state["flight_notes"] = (
-                "Flight search failed: "
-                f"{flight_result.get('error', 'Unknown error')}"
+                flight_result.get("error", "Unknown error")
             )
             updated_state["flight_status"] = "failed"
             updated_state["errors"] = errors
@@ -345,7 +344,7 @@ async def flight_agent(state: dict) -> dict:
     except Exception as exc:
         errors.append(classify_error(exc, "flight"))
         updated_state["flight_details"] = updated_state.get("flight_details", {})
-        updated_state["flight_notes"]   = "Flight search failed."
+        updated_state["flight_notes"]   = classify_error(exc, "flight")
         updated_state["flight_status"]  = "failed"
 
     updated_state["errors"] = errors

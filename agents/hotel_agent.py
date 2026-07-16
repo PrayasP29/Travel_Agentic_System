@@ -113,8 +113,7 @@ async def hotel_agent(state: dict) -> dict:
         if hotel_result.get("status") != "success":
             updated_state["hotel_status"] = "failed"
             updated_state["hotel_notes"] = (
-                "Hotel search failed: "
-                f"{hotel_result.get('error', 'Unknown error')}"
+                hotel_result.get("error", "Unknown error")
             )
             updated_state["errors"] = errors
             print(f"[TIMER] hotel_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
@@ -229,7 +228,7 @@ async def hotel_agent(state: dict) -> dict:
     except Exception as exc:
         errors.append(classify_error(exc, "hotel"))
         updated_state["hotel_details"] = updated_state.get("hotel_details", {})
-        updated_state["hotel_notes"]   = "Hotel search failed."
+        updated_state["hotel_notes"]   = classify_error(exc, "hotel")
         updated_state["hotel_status"]  = "failed"
 
     updated_state["errors"] = errors
