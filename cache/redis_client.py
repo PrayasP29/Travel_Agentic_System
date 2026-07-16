@@ -22,8 +22,10 @@ def get_redis() -> Optional[Redis]:
 
 
 def _create_client() -> Redis:
+    # ponytail: force IPv4 for localhost to avoid ::1 → 127.0.0.1 fallback timeout
+    host = "127.0.0.1" if settings.redis_host == "localhost" else settings.redis_host
     pool = ConnectionPool(
-        host=settings.redis_host,
+        host=host,
         port=settings.redis_port,
         db=settings.redis_db,
         password=settings.redis_password or None,
@@ -44,8 +46,8 @@ async def ping_redis() -> bool:
         return False
     try:
         return await client.ping()
-    except Exception:
-        logger.warning("Redis ping failed", exc_info=True)
+    except Exception as e:
+        logger.warning("Redis ping failed: %s: %s", type(e).__name__, e)
         return False
 
 

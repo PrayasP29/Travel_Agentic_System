@@ -3,6 +3,8 @@
 import time
 from langchain.agents import create_agent
 
+from cache import cache_service
+from cache.cache_keys import CacheKeys, WEATHER_TTL
 from config.models import get_text_llm
 from tools.weather_tools import get_weather
 
@@ -22,10 +24,18 @@ async def weather_agent(state: dict) -> dict:
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
-    try:
-        destination = updated_state.get("destination")
-        event_date = updated_state.get("event_date")
+    destination = updated_state.get("destination")
+    event_date  = updated_state.get("event_date")
 
+    cache_key = CacheKeys.weather(destination or "", event_date or "")
+    cached = await cache_service.get(cache_key)
+    if cached is not None:
+        updated_state.update(cached)
+        updated_state["errors"] = errors
+        print(f"[TIMER] weather_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
+        return updated_state
+
+    try:
         weather_result = await get_weather(destination=destination, event_date=event_date)
         updated_state["weather_details"] = weather_result
         if weather_result.get("status") != "success":
@@ -89,6 +99,11 @@ async def weather_agent(state: dict) -> dict:
             weather_notes or "Weather agent completed without additional notes."
         )
         updated_state["weather_status"] = "completed"
+        await cache_service.set(cache_key, {
+            "weather_details": updated_state.get("weather_details"),
+            "weather_notes": updated_state.get("weather_notes"),
+            "weather_status": updated_state.get("weather_status"),
+        }, ttl=WEATHER_TTL)
     except Exception as exc:
         errors.append(f"weather_agent failed: {exc}")
         updated_state["weather_details"] = updated_state.get("weather_details", {})

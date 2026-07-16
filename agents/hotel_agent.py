@@ -3,6 +3,8 @@
 import time
 from langchain.agents import create_agent
 
+from cache import cache_service
+from cache.cache_keys import CacheKeys, HOTEL_TTL
 from config.models import get_text_llm
 from tools.hotel_tools import search_hotels
 
@@ -87,11 +89,20 @@ async def hotel_agent(state: dict) -> dict:
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
+    destination = updated_state.get("destination")
+    event_date  = updated_state.get("event_date")
+    travelers   = updated_state.get("travelers", 1)
+
+    cache_key = CacheKeys.hotel(destination or "", event_date or "", str(travelers))
+    cached = await cache_service.get(cache_key)
+    if cached is not None:
+        updated_state.update(cached)
+        updated_state["errors"] = errors
+        print(f"[TIMER] hotel_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
+        return updated_state
+
     try:
-        destination       = updated_state.get("destination")
         venue             = updated_state.get("venue")
-        event_date        = updated_state.get("event_date")
-        travelers         = updated_state.get("travelers", 1)
         budget            = updated_state.get("budget")
         hotel_preferences = updated_state.get("hotel_preferences")
 
@@ -206,6 +217,13 @@ async def hotel_agent(state: dict) -> dict:
             )
         )
         updated_state["hotel_status"] = "completed"
+        await cache_service.set(cache_key, {
+            "hotel_details": updated_state.get("hotel_details"),
+            "hotel_booking_links": updated_state.get("hotel_booking_links"),
+            "hotel_price_details": updated_state.get("hotel_price_details"),
+            "hotel_notes": updated_state.get("hotel_notes"),
+            "hotel_status": updated_state.get("hotel_status"),
+        }, ttl=HOTEL_TTL)
 
     except Exception as exc:
         errors.append(f"hotel_agent failed: {exc}")

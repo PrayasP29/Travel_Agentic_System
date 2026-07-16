@@ -5,6 +5,8 @@ import time
 from langchain.agents import create_agent
 from langchain_core.callbacks import BaseCallbackHandler
 
+from cache import cache_service
+from cache.cache_keys import CacheKeys, SEARCH_TTL
 from config.models import get_text_llm
 from tools.tavily_search import search_web
 
@@ -103,7 +105,7 @@ def _last_message_content(response: dict) -> str:
     return getattr(messages[-1], "content", "") or ""
 
 
-def search_agent(state: dict) -> dict:
+async def search_agent(state: dict) -> dict:
     """Use a LangChain agent to decide whether web search is needed."""
     _timer_start = time.time()
     print(f"[TIMER] search_agent START: {_timer_start:.2f}")
@@ -113,9 +115,18 @@ def search_agent(state: dict) -> dict:
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
+    destination = updated_state.get("destination")
+    venue = updated_state.get("venue")
+
+    cache_key = CacheKeys.search(destination or "", venue or "")
+    cached = await cache_service.get(cache_key)
+    if cached is not None:
+        updated_state.update(cached)
+        updated_state["errors"] = errors
+        print(f"[TIMER] search_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
+        return updated_state
+
     try:
-        destination = updated_state.get("destination")
-        venue = updated_state.get("venue")
         interests = updated_state.get("interests")
         trip_style = updated_state.get("trip_style")
 
@@ -178,7 +189,7 @@ def search_agent(state: dict) -> dict:
         )
 
         trace = _SearchTraceHandler()
-        response = agent.invoke(
+        response = await agent.ainvoke(
             {"messages": [{"role": "user", "content": prompt}]},
             config={"callbacks": [trace]},
         )
@@ -189,6 +200,10 @@ def search_agent(state: dict) -> dict:
             search_notes or "Search agent completed without additional notes."
         )
         updated_state["search_status"] = "completed"
+        await cache_service.set(cache_key, {
+            "search_notes": updated_state.get("search_notes"),
+            "search_status": updated_state.get("search_status"),
+        }, ttl=SEARCH_TTL)
     except Exception as exc:
         errors.append(f"search_agent failed: {exc}")
         trace = locals().get("trace")

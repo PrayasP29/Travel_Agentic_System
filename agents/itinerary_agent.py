@@ -4,6 +4,8 @@
 import time
 from langchain.agents import create_agent
 
+from cache import cache_service
+from cache.cache_keys import CacheKeys, ITINERARY_TTL
 from config.models import get_text_llm
 from agents.report_formatter_agent import report_formatter_agent
 
@@ -69,18 +71,27 @@ Local Planning Notes:
 """
 
 
-def itinerary_agent(state: dict) -> dict:
+async def itinerary_agent(state: dict) -> dict:
     """Create a concise itinerary using flights, hotels, weather, and search output."""
     _timer_start = time.time()
     print(f"[TIMER] itinerary_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
-    try:
-        destination = updated_state.get("destination")
-        venue = updated_state.get("venue")
-        event_date = updated_state.get("event_date")
+    destination = updated_state.get("destination")
+    venue = updated_state.get("venue")
+    event_date = updated_state.get("event_date")
 
+    cache_key = CacheKeys.itinerary(destination or "", venue or "", event_date or "")
+    cached = await cache_service.get(cache_key)
+    if cached is not None:
+        updated_state.update(cached)
+        updated_state["errors"] = errors
+        print(f"[TIMER] itinerary_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
+        return updated_state
+
+    try:
+        print("[DIAG-ITIN] try block entered")
         supervisor_notes = updated_state.get("supervisor_notes", "")
         flight_notes = updated_state.get("flight_notes", "")
         hotel_notes = updated_state.get("hotel_notes", "")
@@ -111,6 +122,7 @@ def itinerary_agent(state: dict) -> dict:
             f"Search Notes:\n{search_notes}\n"
         )
 
+        print("[DIAG-ITIN] calling agent.invoke() (sync)...")
         response = agent.invoke(
             {
                 "messages": [
@@ -121,6 +133,7 @@ def itinerary_agent(state: dict) -> dict:
                 ]
             }
         )
+        print(f"[DIAG-ITIN] agent.invoke() returned type={type(response).__name__}")
 
         itinerary = _last_message_content(response)
 
@@ -145,7 +158,20 @@ def itinerary_agent(state: dict) -> dict:
 
         updated_state["status"] = "completed"
 
+        print(f"[DIAG-ITIN] calling cache_service.set(key={cache_key})")
+        set_result = await cache_service.set(cache_key, {
+            "itinerary": updated_state.get("itinerary"),
+            "itinerary_notes": updated_state.get("itinerary_notes"),
+            "itinerary_status": updated_state.get("itinerary_status"),
+            "final_report": updated_state.get("final_report"),
+            "status": updated_state.get("status"),
+        }, ttl=ITINERARY_TTL)
+        print(f"[DIAG-ITIN] cache_service.set returned: {set_result}")
+
     except Exception as exc:
+        import traceback
+        print(f"[DIAG-ITIN] EXCEPT triggered: {type(exc).__name__}: {exc}")
+        print(f"[DIAG-ITIN] traceback:\n{traceback.format_exc()}")
         errors.append(f"itinerary_agent failed: {exc}")
         errors.append("itinerary generation fallback was used.")
 

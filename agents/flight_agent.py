@@ -6,6 +6,8 @@ import time
 
 from langchain.agents import create_agent
 
+from cache import cache_service
+from cache.cache_keys import CacheKeys, FLIGHT_TTL
 from config.models import get_text_llm
 from tools.flight_tools import search_flights
 
@@ -175,6 +177,19 @@ async def flight_agent(state: dict) -> dict:
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
+    destination = updated_state.get("destination")
+    event_date  = updated_state.get("event_date")
+    origin      = updated_state.get("origin")
+    travelers   = updated_state.get("travelers", 1)
+
+    cache_key = CacheKeys.flight(origin or "", destination or "", event_date or "", str(travelers))
+    cached = await cache_service.get(cache_key)
+    if cached is not None:
+        updated_state.update(cached)
+        updated_state["errors"] = errors
+        print(f"[TIMER] flight_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
+        return updated_state
+
     if DEBUG:
         print("\n" + "=" * 80)
         print("FLIGHT AGENT RECEIVED STATE")
@@ -187,11 +202,6 @@ async def flight_agent(state: dict) -> dict:
         print(updated_state)
 
     try:
-        destination = updated_state.get("destination")
-        event_date  = updated_state.get("event_date")
-        origin      = updated_state.get("origin")
-        travelers   = updated_state.get("travelers", 1)
-
         if DEBUG:
             print("\nSEARCH_FLIGHTS INPUTS")
             print("origin =", origin)
@@ -323,6 +333,14 @@ async def flight_agent(state: dict) -> dict:
         updated_state["flight_status"] = (
             "completed" if flight_result.get("status") == "success" else "failed"
         )
+        if updated_state["flight_status"] == "completed":
+            await cache_service.set(cache_key, {
+                "flight_details": updated_state.get("flight_details"),
+                "flight_booking_link": updated_state.get("flight_booking_link"),
+                "recommended_flight_price": updated_state.get("recommended_flight_price"),
+                "flight_notes": updated_state.get("flight_notes"),
+                "flight_status": updated_state.get("flight_status"),
+            }, ttl=FLIGHT_TTL)
     except Exception as exc:
         errors.append(f"flight_agent failed: {exc}")
         updated_state["flight_details"] = updated_state.get("flight_details", {})

@@ -1,98 +1,115 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-dist/
-build/
-*.egg
+# ======================================================
+# Generated diagnostic scripts
+# ======================================================
+diag_*.py
+diagnose_*.py
+verify_*.py
+run_*.py
+debug_*.py
+_debug_*.py
+_repro.py
+benchmark_*.py
+profile_*.py
+timing_*.py
+trace_*.py
+experiment_*.py
+test_parallel.py
 
-# Virtual environment
-.venv/
-venv/
-env/
+# ======================================================
+# Temporary outputs
+# ======================================================
+improve.txt
+report.txt
+final_report.txt
+result.md
+output.txt
+*.out
 
-# Environment variables (NEVER commit)
-.env
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# LangGraph SQLite checkpointer files
-*.db-shm
-*.db-wal
-
-# Logs
+# ======================================================
+# Runtime data
+# ======================================================
 logs/
 *.log
 
-# Outputs
-outputs/
+# ======================================================
+# Python cache
+# ======================================================
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Recordings
-recordings/
-
-# Audio Files
-*.wav
-*.mp3
-*.m4a
-
-# Data Exports
-*.csv
-*.xlsx
-*.parquet
-
-# Coverage
-.coverage
-htmlcov/
+# ======================================================
+# Pytest / Coverage
+# ======================================================
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
 
-# VS Code
+# ======================================================
+# Type checkers / Linters
+# ======================================================
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ======================================================
+# Virtual environments
+# ======================================================
+.venv/
+venv/
+env/
+ENV/
+
+# ======================================================
+# Jupyter
+# ======================================================
+.ipynb_checkpoints/
+
+# ======================================================
+# IDE
+# ======================================================
 .vscode/
-
-# JetBrains IDEs
 .idea/
 
-# LangSmith / LangGraph
-.langgraph_api/
-.langsmith/
-
-# OS Files
+# ======================================================
+# OS files
+# ======================================================
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Temporary Files
-*.tmp
-*.temp
+# ======================================================
+# Local databases
+# ======================================================
+*.db
+*.sqlite
+*.sqlite3
 
-# Vim swap files
-*.swp
-*.swo
-
-# Notebook checkpoints
-.ipynb_checkpoints/
-*.ipynb_checkpoints/
-
-# Alembic pycache
-alembic/__pycache__/
-
-# Generated data (cached API responses, not source code)
+# ======================================================
+# Generated cache/data
+# ======================================================
 data/
+memory/
+cache_dump/
+tmp/
+temp/
 
-# Diagnostic and one-off scripts (not part of core project)
-diagnose_*.py
-run_*.py
-verify_*.py
-test_parallel.py
-result.md
+# Keep source files in memory/
+!memory/__init__.py
+!memory/sqlite_checkpoint.py
 
-# Debug/scratch scripts
-_debug_agents.py
-_debug_checkpointer.py
-_debug_trace.py
-_repro.py
+# ======================================================
+# Node (frontend)
+# ======================================================
+node_modules/
+dist/
+build/
+
+# ======================================================
+# Environment files
+# ======================================================
+.env
+.env.*
+!.env.example

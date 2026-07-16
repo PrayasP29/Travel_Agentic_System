@@ -22,9 +22,9 @@ async def get(key: str) -> Optional[Any]:
             return None
         metrics.record_hit()
         return json.loads(raw)
-    except Exception:
+    except Exception as e:
         metrics.record_error()
-        logger.debug("Cache get error key=%s", key, exc_info=True)
+        logger.warning("Cache GET failed key=%s error=%s: %s", key, type(e).__name__, e)
         return None
 
 
@@ -38,9 +38,9 @@ async def set(key: str, value: Any, ttl: Optional[int] = None) -> bool:
         await client.set(key, json.dumps(value), ex=ttl)
         metrics.record_write()
         return True
-    except Exception:
+    except Exception as e:
         metrics.record_error()
-        logger.debug("Cache set error key=%s", key, exc_info=True)
+        logger.warning("Cache SET failed key=%s error=%s: %s", key, type(e).__name__, e)
         return False
 
 
@@ -54,9 +54,9 @@ async def delete(key: str) -> bool:
         if result > 0:
             metrics.record_delete()
         return result > 0
-    except Exception:
+    except Exception as e:
         metrics.record_error()
-        logger.debug("Cache delete error key=%s", key, exc_info=True)
+        logger.warning("Cache DELETE failed key=%s error=%s: %s", key, type(e).__name__, e)
         return False
 
 
@@ -67,8 +67,9 @@ async def exists(key: str) -> bool:
         return False
     try:
         return bool(await client.exists(key))
-    except Exception:
+    except Exception as e:
         metrics.record_error()
+        logger.warning("Cache EXISTS failed key=%s error=%s: %s", key, type(e).__name__, e)
         return False
 
 
@@ -79,8 +80,9 @@ async def expire(key: str, ttl: int) -> bool:
         return False
     try:
         return bool(await client.expire(key, ttl))
-    except Exception:
+    except Exception as e:
         metrics.record_error()
+        logger.warning("Cache EXPIRE failed key=%s error=%s: %s", key, type(e).__name__, e)
         return False
 
 
@@ -91,8 +93,9 @@ async def ttl(key: str) -> int:
         return -3
     try:
         return await client.ttl(key)
-    except Exception:
+    except Exception as e:
         metrics.record_error()
+        logger.warning("Cache TTL failed key=%s error=%s: %s", key, type(e).__name__, e)
         return -3
 
 
@@ -113,7 +116,7 @@ async def clear(namespace: Optional[str] = None) -> int:
             await client.delete(*keys)
             metrics.record_delete()
         return len(keys)
-    except Exception:
+    except Exception as e:
         metrics.record_error()
-        logger.debug("Cache clear error namespace=%s", namespace, exc_info=True)
+        logger.warning("Cache CLEAR failed namespace=%s error=%s: %s", namespace, type(e).__name__, e)
         return 0
