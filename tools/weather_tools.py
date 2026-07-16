@@ -10,6 +10,7 @@ from tools.weather_mcp_client import (
     get_current_weather,
     get_weather_forecast,
 )
+from utils.error_categories import classify_error
 
 PROVIDER = "livedatalink"
 FORECAST_MIN_DAYS = 1
@@ -46,7 +47,7 @@ async def _safe_get_air_quality(destination: str) -> dict:
         return {
             "status": "error",
             "provider": PROVIDER,
-            "error": f"Air quality lookup failed: {type(exc).__name__}: {exc}",
+            "error": classify_error(exc, "weather"),
         }
 
 

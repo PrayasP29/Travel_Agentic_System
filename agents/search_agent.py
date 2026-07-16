@@ -9,6 +9,7 @@ from cache import cache_service
 from cache.cache_keys import CacheKeys, SEARCH_TTL
 from config.models import get_text_llm
 from tools.tavily_search import search_web
+from utils.error_categories import classify_error
 
 
 class _SearchTraceHandler(BaseCallbackHandler):
@@ -205,7 +206,7 @@ async def search_agent(state: dict) -> dict:
             "search_status": updated_state.get("search_status"),
         }, ttl=SEARCH_TTL)
     except Exception as exc:
-        errors.append(f"search_agent failed: {exc}")
+        errors.append(classify_error(exc, "search"))
         trace = locals().get("trace")
         updated_state["search_results"] = updated_state.get("search_results", {})
         updated_state["search_notes"] = "Web search failed."

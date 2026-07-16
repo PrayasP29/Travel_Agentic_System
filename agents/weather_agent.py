@@ -7,6 +7,7 @@ from cache import cache_service
 from cache.cache_keys import CacheKeys, WEATHER_TTL
 from config.models import get_text_llm
 from tools.weather_tools import get_weather
+from utils.error_categories import classify_error
 
 
 def _last_message_content(response: dict) -> str:
@@ -105,7 +106,7 @@ async def weather_agent(state: dict) -> dict:
             "weather_status": updated_state.get("weather_status"),
         }, ttl=WEATHER_TTL)
     except Exception as exc:
-        errors.append(f"weather_agent failed: {exc}")
+        errors.append(classify_error(exc, "weather"))
         updated_state["weather_details"] = updated_state.get("weather_details", {})
         updated_state["weather_notes"] = "Weather lookup failed."
         updated_state["weather_status"] = "failed"

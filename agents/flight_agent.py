@@ -10,6 +10,7 @@ from cache import cache_service
 from cache.cache_keys import CacheKeys, FLIGHT_TTL
 from config.models import get_text_llm
 from tools.flight_tools import search_flights
+from utils.error_categories import classify_error
 
 DEBUG = False
 
@@ -342,7 +343,7 @@ async def flight_agent(state: dict) -> dict:
                 "flight_status": updated_state.get("flight_status"),
             }, ttl=FLIGHT_TTL)
     except Exception as exc:
-        errors.append(f"flight_agent failed: {exc}")
+        errors.append(classify_error(exc, "flight"))
         updated_state["flight_details"] = updated_state.get("flight_details", {})
         updated_state["flight_notes"]   = "Flight search failed."
         updated_state["flight_status"]  = "failed"

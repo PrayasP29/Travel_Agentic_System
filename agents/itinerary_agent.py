@@ -8,6 +8,7 @@ from cache import cache_service
 from cache.cache_keys import CacheKeys, ITINERARY_TTL
 from config.models import get_text_llm
 from agents.report_formatter_agent import report_formatter_agent
+from utils.error_categories import classify_error
 
 
 def _last_message_content(response: dict) -> str:
@@ -164,7 +165,7 @@ async def itinerary_agent(state: dict) -> dict:
         }, ttl=ITINERARY_TTL)
 
     except Exception as exc:
-        errors.append(f"itinerary_agent failed: {exc}")
+        errors.append(classify_error(exc, "graph"))
         errors.append("itinerary generation fallback was used.")
 
         fallback_itinerary = _build_fallback_itinerary(updated_state)

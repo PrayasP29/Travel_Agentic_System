@@ -33,6 +33,7 @@ from services.rate_limiter import (
     record_trip_success,
     reset_trip_failures,
 )
+from utils.error_categories import classify_error
 
 router = APIRouter(prefix="/trips", tags=["Trip Planning"])
 
@@ -184,7 +185,7 @@ async def plan_trip(
         await record_trip_failure(user_id)
         return TripPlanResponse(
             success=False,
-            report=f"Graph execution failed: {exc}",
+            report=classify_error(exc, "graph"),
             itinerary="",
             destination=destination,
             event_date=event_date,

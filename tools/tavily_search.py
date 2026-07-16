@@ -7,6 +7,7 @@ from typing import Any
 from tavily import TavilyClient
 
 from config.settings import settings
+from utils.error_categories import classify_error
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def search_web(query: str, max_results: int = 5) -> dict[str, Any]:
                 return {
                     "query": query,
                     "results": [],
-                    "error": str(exc),
+                    "error": classify_error(exc, "search"),
                 }
 
             time.sleep(attempt)

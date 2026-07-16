@@ -10,6 +10,7 @@ from mcp import ClientSession, types
 from mcp.client.streamable_http import streamable_http_client
 
 from config.settings import settings
+from utils.error_categories import classify_error
 
 PROVIDER = "livedatalink"
 DEFAULT_TIMEOUT_SECONDS = 20
@@ -108,21 +109,21 @@ async def get_current_weather(location: str) -> dict:
         response = await _call_tool("weather_current", payload, DEFAULT_TIMEOUT_SECONDS)
         return _handle_response("weather_current", response)
     except asyncio.TimeoutError as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": PROVIDER,
             "tool_used": "weather_current",
-            "error": error_details,
+            "error": classify_error(exc, "weather"),
             "data": "",
         }
     except Exception as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": PROVIDER,
             "tool_used": "weather_current",
-            "error": error_details,
+            "error": classify_error(exc, "weather"),
             "data": "",
         }
 
@@ -144,21 +145,21 @@ async def get_weather_forecast(location: str, days: int = 7) -> dict:
         response = await _call_tool("weather_forecast", payload, DEFAULT_TIMEOUT_SECONDS)
         return _handle_response("weather_forecast", response)
     except asyncio.TimeoutError as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": PROVIDER,
             "tool_used": "weather_forecast",
-            "error": error_details,
+            "error": classify_error(exc, "weather"),
             "data": "",
         }
     except Exception as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": PROVIDER,
             "tool_used": "weather_forecast",
-            "error": error_details,
+            "error": classify_error(exc, "weather"),
             "data": "",
         }
 
@@ -180,20 +181,20 @@ async def get_air_quality(location: str) -> dict:
         response = await _call_tool("air_quality", payload, DEFAULT_TIMEOUT_SECONDS)
         return _handle_response("air_quality", response)
     except asyncio.TimeoutError as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": PROVIDER,
             "tool_used": "air_quality",
-            "error": error_details,
+            "error": classify_error(exc, "weather"),
             "data": "",
         }
     except Exception as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": PROVIDER,
             "tool_used": "air_quality",
-            "error": error_details,
+            "error": classify_error(exc, "weather"),
             "data": "",
         }

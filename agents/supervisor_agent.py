@@ -3,6 +3,7 @@
 from langchain.agents import create_agent
 
 from config.models import get_text_llm
+from utils.error_categories import classify_error
 
 DEBUG = False
 
@@ -134,7 +135,7 @@ def supervisor_agent(state: dict) -> dict:
         response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
         updated_state["supervisor_notes"] = _last_message_content(response)
     except Exception as exc:
-        errors.append(f"supervisor planning failed: {exc}")
+        errors.append(classify_error(exc, "graph"))
         updated_state["supervisor_notes"] = "Supervisor fallback plan created."
         updated_state["status"]           = "degraded"
 

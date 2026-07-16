@@ -12,6 +12,7 @@ from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 
 from config.settings import settings
+from utils.error_categories import classify_error
 
 TOOL_NAME = "search-flight"
 DEFAULT_TIMEOUT_SECONDS = 20
@@ -209,20 +210,20 @@ async def search_flights(
             "available_tools": response["tools"],
         }
     except asyncio.TimeoutError as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": "kiwi",
             "tool_used": TOOL_NAME,
-            "error": error_details,
+            "error": classify_error(exc, "flight"),
             "data": {},
         }
     except Exception as exc:
-        error_details = _log_exception_details(exc)
+        _log_exception_details(exc)
         return {
             "status": "error",
             "provider": "kiwi",
             "tool_used": TOOL_NAME,
-            "error": error_details,
+            "error": classify_error(exc, "flight"),
             "data": {},
         }

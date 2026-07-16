@@ -7,6 +7,7 @@ from cache import cache_service
 from cache.cache_keys import CacheKeys, HOTEL_TTL
 from config.models import get_text_llm
 from tools.hotel_tools import search_hotels
+from utils.error_categories import classify_error
 
 
 def _last_message_content(response: dict) -> str:
@@ -226,7 +227,7 @@ async def hotel_agent(state: dict) -> dict:
         }, ttl=HOTEL_TTL)
 
     except Exception as exc:
-        errors.append(f"hotel_agent failed: {exc}")
+        errors.append(classify_error(exc, "hotel"))
         updated_state["hotel_details"] = updated_state.get("hotel_details", {})
         updated_state["hotel_notes"]   = "Hotel search failed."
         updated_state["hotel_status"]  = "failed"

@@ -5,6 +5,7 @@ from langchain.agents import create_agent
 
 from config.models import get_text_llm
 from tools.hotel_tools import search_local_places
+from utils.error_categories import classify_error
 
 
 def _last_message_content(response: dict) -> str:
@@ -69,7 +70,7 @@ async def local_agent(state: dict) -> dict:
         _t8 = time.perf_counter()
         print(f"[PHASE] local_agent state_update: t={_t8:.3f} +{(_t8-_t7)*1000:.1f}ms")
     except Exception as exc:
-        errors.append(f"local_agent failed: {exc}")
+        errors.append(classify_error(exc, "local"))
         updated_state["local_results"] = updated_state.get("local_results", {})
         updated_state["local_notes"] = "Local discovery failed."
         updated_state["local_status"] = "failed"
