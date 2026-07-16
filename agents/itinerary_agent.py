@@ -91,7 +91,6 @@ async def itinerary_agent(state: dict) -> dict:
         return updated_state
 
     try:
-        print("[DIAG-ITIN] try block entered")
         supervisor_notes = updated_state.get("supervisor_notes", "")
         flight_notes = updated_state.get("flight_notes", "")
         hotel_notes = updated_state.get("hotel_notes", "")
@@ -122,8 +121,7 @@ async def itinerary_agent(state: dict) -> dict:
             f"Search Notes:\n{search_notes}\n"
         )
 
-        print("[DIAG-ITIN] calling agent.invoke() (sync)...")
-        response = agent.invoke(
+        response = await agent.ainvoke(
             {
                 "messages": [
                     {
@@ -133,7 +131,6 @@ async def itinerary_agent(state: dict) -> dict:
                 ]
             }
         )
-        print(f"[DIAG-ITIN] agent.invoke() returned type={type(response).__name__}")
 
         itinerary = _last_message_content(response)
 
@@ -158,7 +155,6 @@ async def itinerary_agent(state: dict) -> dict:
 
         updated_state["status"] = "completed"
 
-        print(f"[DIAG-ITIN] calling cache_service.set(key={cache_key})")
         set_result = await cache_service.set(cache_key, {
             "itinerary": updated_state.get("itinerary"),
             "itinerary_notes": updated_state.get("itinerary_notes"),
@@ -166,12 +162,8 @@ async def itinerary_agent(state: dict) -> dict:
             "final_report": updated_state.get("final_report"),
             "status": updated_state.get("status"),
         }, ttl=ITINERARY_TTL)
-        print(f"[DIAG-ITIN] cache_service.set returned: {set_result}")
 
     except Exception as exc:
-        import traceback
-        print(f"[DIAG-ITIN] EXCEPT triggered: {type(exc).__name__}: {exc}")
-        print(f"[DIAG-ITIN] traceback:\n{traceback.format_exc()}")
         errors.append(f"itinerary_agent failed: {exc}")
         errors.append("itinerary generation fallback was used.")
 
