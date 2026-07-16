@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     redis_default_ttl: int = 1800
     redis_enabled: bool = True
 
+    # RATE LIMITING
+    rate_limit_enabled: bool = True
+    login_max_attempts: int = 5
+    login_lock_hours: int = 25
+    register_max_attempts: int = 5
+    register_lock_hours: int = 24
+    trip_failure_max_attempts: int = 3
+    trip_failure_lock_minutes: int = 20
+    trip_success_daily_limit: int = 2
+    trip_success_window_hours: int = 24
+
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
         env_file_encoding="utf-8",

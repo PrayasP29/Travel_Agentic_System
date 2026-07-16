@@ -24,14 +24,24 @@ from database.crud import (
 )
 from database.models import User
 from backend.api.schemas.auth import Token, TokenRefresh, UserCreate, UserLogin, UserResponse
+from services.rate_limiter import (
+    check_login_rate_limit,
+    check_register_rate_limit,
+    record_login_failure,
+    record_register_failure,
+    reset_login_failures,
+    reset_register_failures,
+)
 
 router = APIRouter(tags=["auth"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: UserCreate, db: AsyncSession = Depends(get_db)):
+    await check_register_rate_limit(body.email)
     existing = await get_user_by_email(db, body.email)
     if existing:
+        await record_register_failure(body.email)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered",
@@ -42,17 +52,21 @@ async def register(body: UserCreate, db: AsyncSession = Depends(get_db)):
         password=body.password,
         full_name=body.full_name,
     )
+    await reset_register_failures(body.email)
     return UserResponse.model_validate(user)
 
 
 @router.post("/login", response_model=Token)
 async def login(body: UserLogin, db: AsyncSession = Depends(get_db)):
+    await check_login_rate_limit(body.email)
     user = await get_user_by_email(db, body.email)
     if not user or not verify_password(body.password, user.hashed_password):
+        await record_login_failure(body.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+    await reset_login_failures(body.email)
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = generate_refresh_token(data={"sub": str(user.id)})
     await store_refresh_token(

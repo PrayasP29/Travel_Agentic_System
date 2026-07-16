@@ -38,3 +38,32 @@ class CacheKeys:
     @classmethod
     def itinerary(cls, destination: str, venue: str, event_date: str) -> str:
         return cls._make("itinerary", destination, venue, event_date)
+
+    # Rate limit keys
+    @classmethod
+    def login(cls, email: str) -> str:
+        return cls._make("login", email)
+
+    @classmethod
+    def login_lock(cls, email: str) -> str:
+        return cls._make("login_lock", email)
+
+    @classmethod
+    def register(cls, email: str) -> str:
+        return cls._make("register", email)
+
+    @classmethod
+    def register_lock(cls, email: str) -> str:
+        return cls._make("register_lock", email)
+
+    @classmethod
+    def trip_failure(cls, user_id: str) -> str:
+        return cls._make("trip_failure", user_id)
+
+    @classmethod
+    def trip_failure_lock(cls, user_id: str) -> str:
+        return cls._make("trip_failure_lock", user_id)
+
+    @classmethod
+    def trip_success(cls, user_id: str) -> str:
+        return cls._make("trip_success", user_id)

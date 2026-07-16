@@ -26,6 +26,13 @@ from database.crud import (
     update_trip_status,
 )
 from database.models import User
+from services.rate_limiter import (
+    check_trip_failure_rate_limit,
+    check_trip_quota,
+    record_trip_failure,
+    record_trip_success,
+    reset_trip_failures,
+)
 
 router = APIRouter(prefix="/trips", tags=["Trip Planning"])
 
@@ -131,6 +138,10 @@ async def plan_trip(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> TripPlanResponse:
+    user_id = str(current_user.id)
+    await check_trip_failure_rate_limit(user_id)
+    await check_trip_quota(user_id)
+
     if body.sentence:
         logger.info(f"Parsing natural-language request: {body.sentence!r}")
         parsed = request_parser_agent(body.sentence)
@@ -170,6 +181,7 @@ async def plan_trip(
     except Exception as exc:
         logger.exception(f"thread_id={thread_id} | Graph execution failed: {exc}")
         await update_trip_status(db, trip_id=trip.id, status="failed")
+        await record_trip_failure(user_id)
         return TripPlanResponse(
             success=False,
             report=f"Graph execution failed: {exc}",
@@ -183,6 +195,7 @@ async def plan_trip(
     if not isinstance(result, dict):
         logger.error(f"thread_id={thread_id} | Graph returned unexpected type: {type(result)}")
         await update_trip_status(db, trip_id=trip.id, status="failed")
+        await record_trip_failure(user_id)
         return TripPlanResponse(
             success=False,
             report="Graph returned unexpected type",
@@ -199,6 +212,9 @@ async def plan_trip(
         status="completed",
         final_state=result,
     )
+
+    await record_trip_success(user_id)
+    await reset_trip_failures(user_id)
 
     status = result.get("status", "unknown")
     logger.info(
