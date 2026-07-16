@@ -113,3 +113,8 @@ build/
 .env
 .env.*
 !.env.example
+
+# Local development / deployment files
+GITHUB_AUDIT.md
+runtime.txt
+Procfile
