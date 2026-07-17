@@ -5,7 +5,11 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from agents.request_parser_agent import request_parser_agent
+from agents.request_parser_agent import (
+    request_parser_agent,
+    validate_parsed_fields,
+    format_missing_fields_message,
+)
 from utils.state_builder import build_trip_state
 
 _GRAPH_INSTANCE = None
@@ -30,6 +34,9 @@ async def plan_trip(user_request: str) -> dict[str, Any]:
         raise ValueError("user_request must be a non-empty string.")
 
     parsed_request = request_parser_agent(user_request)
+    missing = validate_parsed_fields(parsed_request)
+    if missing:
+        raise ValueError(format_missing_fields_message(missing))
     state = build_trip_state(parsed_request)
     thread_id = _generate_thread_id()
 

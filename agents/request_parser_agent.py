@@ -88,6 +88,28 @@ def _extract_json_payload(text: str) -> dict:
     return parsed
 
 
+_REQUIRED_FIELDS = ("origin", "destination", "venue", "event_date")
+
+
+def validate_parsed_fields(parsed: dict) -> list[str]:
+    """Return required field names that are missing or empty."""
+    missing: list[str] = []
+    for field in _REQUIRED_FIELDS:
+        value = parsed.get(field)
+        if not value or not str(value).strip():
+            missing.append(field)
+    return missing
+
+
+def format_missing_fields_message(missing: list[str]) -> str:
+    """Build a user-friendly message listing missing required fields."""
+    if len(missing) == 1:
+        return f"Please provide the {missing[0]}."
+    if len(missing) == 2:
+        return f"Please provide the {missing[0]} and {missing[1]}."
+    return f"Please provide the following information: {', '.join(missing)}."
+
+
 def request_parser_agent(user_request: str) -> dict:
     """Parse a natural language trip request into structured fields."""
     if not user_request or not user_request.strip():
@@ -101,11 +123,17 @@ def request_parser_agent(user_request: str) -> dict:
         model=get_text_llm(),
         tools=[],
         system_prompt=(
-            "You are a request parsing agent. Extract structured details from the "
-            "user's travel request. Return only JSON with these keys: origin, "
-            "destination, travelers, venue, event_date. Use null when a field is "
-            "missing. travelers must be an integer. event_date should be "
-            "YYYY-MM-DD when available."
+            "You are a request parsing agent. Your ONLY job is to extract trip details "
+            "from the user's message and return valid JSON.\n\n"
+            "RULES:\n"
+            "- Extract ONLY these keys: origin, destination, travelers, venue, event_date\n"
+            "- IGNORE greetings, jokes, questions, opinions, and any text unrelated to trip details\n"
+            "- IGNORE the user's name, personal information, and casual conversation\n"
+            "- Do NOT guess, invent, or hallucinate missing values\n"
+            "- If a field is not mentioned, set it to null\n"
+            "- travelers must be an integer if present, null otherwise\n"
+            "- event_date should be YYYY-MM-DD format when available, null otherwise\n"
+            "- Return ONLY the JSON object. No explanations, no markdown, no extra text"
         ),
     )
 

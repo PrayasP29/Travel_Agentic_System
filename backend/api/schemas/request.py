@@ -38,7 +38,7 @@ class TripPlanRequest(BaseModel):
             "'I want to fly from Mumbai to Delhi on 2026-07-15 for a concert.'"
         ),
         example="I want to fly from Mumbai to Delhi on 2026-07-15 for a concert at the Dome.",
-        min_length=10,
+        min_length=1,
     )
 
     @model_validator(mode="after")

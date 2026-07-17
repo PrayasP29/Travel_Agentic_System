@@ -4,11 +4,15 @@ import uuid
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.log_config import logger
-from agents.request_parser_agent import request_parser_agent
+from agents.request_parser_agent import (
+    request_parser_agent,
+    validate_parsed_fields,
+    format_missing_fields_message,
+)
 from backend.api.schemas.request import TripPlanRequest
 from backend.api.schemas.response import (
     HealthResponse,
@@ -148,7 +152,16 @@ async def plan_trip(
 
     if body.sentence:
         logger.info(f"Parsing natural-language request: {body.sentence!r}")
-        parsed = request_parser_agent(body.sentence)
+        try:
+            parsed = request_parser_agent(body.sentence)
+        except Exception:
+            parsed = {}
+        missing = validate_parsed_fields(parsed)
+        if missing:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": format_missing_fields_message(missing)},
+            )
     else:
         parsed = {
             "origin": body.origin,
@@ -263,7 +276,26 @@ async def plan_trip_stream(
 
     if body.sentence:
         logger.info(f"Parsing natural-language request: {body.sentence!r}")
-        parsed = request_parser_agent(body.sentence)
+        try:
+            parsed = request_parser_agent(body.sentence)
+        except Exception:
+            parsed = {}
+        missing = validate_parsed_fields(parsed)
+        if missing:
+            message = format_missing_fields_message(missing)
+
+            async def _validation_error_stream():
+                yield f"event: error\ndata: {json.dumps({'success': False, 'message': message})}\n\n"
+
+            return StreamingResponse(
+                _validation_error_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                },
+            )
     else:
         parsed = {
             "origin": body.origin,
