@@ -114,6 +114,7 @@ build/
 .env.*
 !.env.example
 ARCHITECTURE.md
+REQUIREMENTS.md
 # Local development / deployment files
 GITHUB_AUDIT.md
 runtime.txt
