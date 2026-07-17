@@ -4,23 +4,7 @@ from langchain.agents import create_agent
 
 from config.models import get_text_llm
 from utils.error_categories import classify_error
-
-DEBUG = False
-
-# Keys removed from the previous schema — excluded from LLM context
-_DEPRECATED_STATE_KEYS = {
-    "recommended_hotel_price",
-    "hotel_price",
-    "hotel_price_details_numeric",
-}
-
-
-def _last_message_content(response: dict) -> str:
-    """Extract the final message content from a LangChain agent response."""
-    messages = response.get("messages", [])
-    if not messages:
-        return ""
-    return getattr(messages[-1], "content", "") or ""
+from utils.helpers import last_message_content
 
 
 def _build_execution_plan(state: dict) -> dict:
@@ -64,19 +48,8 @@ def _build_hotel_summary(state: dict) -> str:
     return "\n".join(lines)
 
 
-def _sanitize_state_for_llm(state: dict) -> dict:
-    """Remove deprecated keys before passing state to the LLM."""
-    return {k: v for k, v in state.items() if k not in _DEPRECATED_STATE_KEYS}
-
-
 def supervisor_agent(state: dict) -> dict:
     """Orchestrate specialist agents and deliver the final trip plan."""
-    if DEBUG:
-        print("\n" + "=" * 80)
-        print("SUPERVISOR RECEIVED STATE")
-        print("=" * 80)
-        print(state)
-
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -121,19 +94,18 @@ def supervisor_agent(state: dict) -> dict:
     )
 
     hotel_summary   = _build_hotel_summary(updated_state)
-    sanitized_state = _sanitize_state_for_llm(updated_state)
 
     prompt = (
         "Analyze the trip request and current state. Explain why the execution "
         "plan makes sense and call out any missing details.\n\n"
         f"Execution Plan:\n{updated_state['execution_plan']}\n\n"
         f"Hotel Summary:\n{hotel_summary}\n\n"
-        f"Full State:\n{sanitized_state}"
+        f"Full State:\n{updated_state}"
     )
 
     try:
         response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
-        updated_state["supervisor_notes"] = _last_message_content(response)
+        updated_state["supervisor_notes"] = last_message_content(response)
     except Exception as exc:
         errors.append(classify_error(exc, "graph"))
         updated_state["supervisor_notes"] = "Supervisor fallback plan created."
@@ -142,12 +114,6 @@ def supervisor_agent(state: dict) -> dict:
     updated_state["errors"] = errors
     if validation_errors:
         updated_state["status"] = "blocked"
-        if DEBUG:
-            print("\nSUPERVISOR RETURNING STATE")
-            print(updated_state)
         return updated_state
 
-    if DEBUG:
-        print("\nSUPERVISOR RETURNING STATE")
-        print(updated_state)
     return updated_state

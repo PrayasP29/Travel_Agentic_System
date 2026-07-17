@@ -31,11 +31,8 @@ def _extract_text(result: Any) -> str:
 
 
 def _log_exception_details(exc: BaseException) -> str:
-    """Print and return exception diagnostics."""
-    details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    print("MCP ERROR DETAILS")
-    print(details)
-    return details
+    """Return detailed exception diagnostics."""
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
 
 
 async def _call_tool(

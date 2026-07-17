@@ -41,6 +41,7 @@ from services.rate_limiter import (
     reset_trip_failures,
 )
 from utils.error_categories import classify_error
+from utils.execution_log import logger as exec_log
 
 router = APIRouter(prefix="/trips", tags=["Trip Planning"])
 
@@ -191,11 +192,15 @@ async def plan_trip(
     try:
         logger.info(f"thread_id={thread_id} origin={parsed.get('origin')} destination={destination} | Invoking graph")
         graph = await _get_graph()
+        exec_log.info("Graph START")
+        t_graph = time.monotonic()
         result = await graph.ainvoke(
             state,
             config={"configurable": {"thread_id": thread_id}},
         )
+        exec_log.info("Graph COMPLETE (%.2fs)", time.monotonic() - t_graph)
     except Exception as exc:
+        exec_log.info("Graph FAIL (%.2fs)", time.monotonic() - t_graph)
         logger.exception(f"thread_id={thread_id} | Graph execution failed: {exc}")
         await update_trip_status(db, trip_id=trip.id, status="failed")
         await record_trip_failure(user_id)
@@ -361,6 +366,8 @@ async def plan_trip_stream(
 
         try:
             graph = await _get_graph()
+            exec_log.info("Graph START")
+            t_graph = time.monotonic()
             async for event in graph.astream_events(
                 state,
                 config={"configurable": {"thread_id": thread_id}},
@@ -428,11 +435,13 @@ async def plan_trip_stream(
                     })
 
         except Exception as exc:
+            exec_log.info("Graph FAIL (%.2fs)", time.monotonic() - t_graph)
             yield _sse("error", {"message": classify_error(exc, "graph")})
             await update_trip_status(db, trip_id=trip.id, status="failed")
             await record_trip_failure(user_id)
             return
 
+        exec_log.info("Graph COMPLETE (%.2fs)", time.monotonic() - t_graph)
         result_state = final_state or accumulated
 
         await update_trip_status(

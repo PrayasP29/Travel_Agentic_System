@@ -6,8 +6,6 @@ import time
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
-
-
 from agents.coordinator import coordinator_agent
 from agents.flight_agent import flight_agent
 from agents.hotel_agent import hotel_agent
@@ -18,16 +16,27 @@ from agents.supervisor_agent import supervisor_agent
 from agents.weather_agent import weather_agent
 from memory.sqlite_checkpoint import get_checkpointer
 from state.trip_state import TripPlannerState
+from utils.execution_log import logger as exec_log
 
-# Execution order for the specialist agents. The supervisor's execution_plan
-# determines which of these actually run — any may be conditionally skipped.
-_AGENT_EXECUTION_ORDER = [
-    "flight_agent",
-    "hotel_agent",
-    "weather_agent",
-    "search_agent",
-    "local_agent",
-]
+_NODE_LABELS = {
+    "coordinator_agent": "Coordinator",
+    "supervisor_agent": "Supervisor",
+    "flight_agent": "Flight",
+    "hotel_agent": "Hotel",
+    "weather_agent": "Weather",
+    "search_agent": "Search",
+    "local_agent": "Local",
+    "itinerary_agent": "Itinerary",
+}
+
+
+def _only_changed(state: dict, result: dict) -> dict:
+    """Return only keys that are new or differ from the input state.
+
+    Prevents InvalidUpdateError when parallel agents via Send() all
+    echo back unchanged LastValue keys (e.g. origin, destination).
+    """
+    return {k: v for k, v in result.items() if k not in state or state[k] != v}
 
 # Map every possible return value from the routing functions to the
 # corresponding registered node name.
@@ -42,37 +51,32 @@ _ALL_AGENT_ROUTES = {
 }
 
 
+_AGENT_PLAN_KEYS = [
+    ("run_flight_agent",  "Flight"),
+    ("run_hotel_agent",   "Hotel"),
+    ("run_weather_agent", "Weather"),
+    ("run_search_agent",  "Search"),
+    ("run_local_agent",   "Local"),
+]
+
+
 def _route_from_supervisor(state: TripPlannerState):
     """After the supervisor, fan out to all enabled parallel agents via Send(),
     or route directly to itinerary_agent if none are enabled."""
     plan = state.get("execution_plan", {})
     sends = []
-    if plan.get("run_flight_agent"):
-        sends.append(Send("flight_agent", state))
-    if plan.get("run_hotel_agent"):
-        sends.append(Send("hotel_agent", state))
-    if plan.get("run_weather_agent"):
-        sends.append(Send("weather_agent", state))
-    if plan.get("run_search_agent"):
-        sends.append(Send("search_agent", state))
-    if plan.get("run_local_agent"):
-        sends.append(Send("local_agent", state))
+    enabled = []
+    for key, label in _AGENT_PLAN_KEYS:
+        if plan.get(key):
+            sends.append(Send(key.replace("run_", ""), state))
+            enabled.append(label)
+    if enabled:
+        exec_log.info("Supervisor routed: %s", ", ".join(f"-> {a}" for a in enabled))
+    else:
+        exec_log.info("Supervisor routed: -> Itinerary (no parallel agents)")
     if not sends:
         return "itinerary_agent"
     return sends
-
-
-def _make_route_after(after: str):
-    """Return a routing function that finds the next agent after *after*."""
-    def _router(state: TripPlannerState) -> str:
-        plan = state.get("execution_plan", {})
-        start = _AGENT_EXECUTION_ORDER.index(after) + 1
-        for agent in _AGENT_EXECUTION_ORDER[start:]:
-            if plan.get(f"run_{agent}", False):
-                return agent
-        return "itinerary_agent"
-    _router.__name__ = f"route_from_{after}"
-    return _router
 
 
 async def build_trip_graph(*, checkpointer=None):
@@ -84,65 +88,45 @@ async def build_trip_graph(*, checkpointer=None):
     """
     graph = StateGraph(TripPlannerState)
 
-    def _run_with_debug(name, fn):
-        if inspect.iscoroutinefunction(fn):
-            async def _wrapped(state: dict):
-                _t_entry = time.perf_counter()
-                print(f"[GRAPH] NODE ENTER: {name} t={_t_entry:.3f}")
-                _t_fn = time.perf_counter()
-                result = await fn(state)
-                _t_fn_done = time.perf_counter()
-                fn_time = _t_fn_done - _t_fn
-                if isinstance(result, dict) and isinstance(state, dict):
-                    diff = {k: v for k, v in result.items()
-                            if k not in state or state[k] != v}
-                else:
-                    diff = result
-                _t_exit = time.perf_counter()
-                overhead = _t_exit - _t_fn_done
-                total = _t_exit - _t_entry
-                print(f"[GRAPH] NODE EXIT: {name} t={_t_exit:.3f} "
-                      f"fn={fn_time:.3f}s overhead={overhead:.3f}s total={total:.3f}s")
-                return diff
-        else:
-            def _wrapped(state: dict):
-                _t_entry = time.perf_counter()
-                print(f"[GRAPH] NODE ENTER: {name} t={_t_entry:.3f}")
-                _t_fn = time.perf_counter()
-                result = fn(state)
-                _t_fn_done = time.perf_counter()
-                fn_time = _t_fn_done - _t_fn
-                if isinstance(result, dict) and isinstance(state, dict):
-                    diff = {k: v for k, v in result.items()
-                            if k not in state or state[k] != v}
-                else:
-                    diff = result
-                _t_exit = time.perf_counter()
-                overhead = _t_exit - _t_fn_done
-                total = _t_exit - _t_entry
-                print(f"[GRAPH] NODE EXIT: {name} t={_t_exit:.3f} "
-                      f"fn={fn_time:.3f}s overhead={overhead:.3f}s total={total:.3f}s")
-                return diff
-
-        return _wrapped
-
     # ── Nodes ──────────────────────────────────────────────────────────
-    graph.add_node("coordinator_agent",
-                   _run_with_debug("coordinator_agent", coordinator_agent))
-    graph.add_node("supervisor_agent",
-                   _run_with_debug("supervisor_agent", supervisor_agent))
-    graph.add_node("flight_agent",
-                   _run_with_debug("flight_agent", flight_agent))
-    graph.add_node("hotel_agent",
-                   _run_with_debug("hotel_agent", hotel_agent))
-    graph.add_node("weather_agent",
-                   _run_with_debug("weather_agent", weather_agent))
-    graph.add_node("search_agent",
-                   _run_with_debug("search_agent", search_agent))
-    graph.add_node("local_agent",
-                   _run_with_debug("local_agent", local_agent))
-    graph.add_node("itinerary_agent",
-                   _run_with_debug("itinerary_agent", itinerary_agent))
+    # Wrap each agent so only changed keys are returned.  Without this,
+    # parallel agents echo back the full state, causing
+    # InvalidUpdateError on LastValue keys (origin, destination, …).
+    for name, fn in [
+        ("coordinator_agent", coordinator_agent),
+        ("supervisor_agent", supervisor_agent),
+        ("flight_agent", flight_agent),
+        ("hotel_agent", hotel_agent),
+        ("weather_agent", weather_agent),
+        ("search_agent", search_agent),
+        ("local_agent", local_agent),
+        ("itinerary_agent", itinerary_agent),
+    ]:
+        def _make(f=fn, _label=None):
+            if inspect.iscoroutinefunction(f):
+                async def _wrapped(state: dict) -> dict:
+                    exec_log.info("%s START", _label)
+                    t0 = time.monotonic()
+                    try:
+                        result = await f(state)
+                    except Exception:
+                        exec_log.info("%s FAIL (%.2fs)", _label, time.monotonic() - t0)
+                        raise
+                    exec_log.info("%s COMPLETE (%.2fs)", _label, time.monotonic() - t0)
+                    return _only_changed(state, result) if isinstance(result, dict) else result
+            else:
+                def _wrapped(state: dict) -> dict:
+                    exec_log.info("%s START", _label)
+                    t0 = time.monotonic()
+                    try:
+                        result = f(state)
+                    except Exception:
+                        exec_log.info("%s FAIL (%.2fs)", _label, time.monotonic() - t0)
+                        raise
+                    exec_log.info("%s COMPLETE (%.2fs)", _label, time.monotonic() - t0)
+                    return _only_changed(state, result) if isinstance(result, dict) else result
+            return _wrapped
+        graph.add_node(name, _make(_label=_NODE_LABELS.get(name, name)))
 
     # ── Fixed edges ────────────────────────────────────────────────────
     graph.add_edge(START, "coordinator_agent")

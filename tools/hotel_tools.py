@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 import traceback
 from typing import Any
 
@@ -16,7 +15,6 @@ from utils.error_categories import classify_error
 
 TOOL_NAME = "search"
 DEFAULT_TIMEOUT_SECONDS = 20
-DEBUG = False
 
 
 def _serialize_tool_result(result: Any) -> dict:
@@ -63,11 +61,8 @@ def _serialize_tool_result(result: Any) -> dict:
 
 
 def _log_exception_details(exc: BaseException) -> str:
-    """Print and return exception diagnostics."""
-    details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    print("MCP ERROR DETAILS")
-    print(details)
-    return details
+    """Return detailed exception diagnostics."""
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
 
 
 async def _list_tools_and_call(
@@ -121,8 +116,6 @@ async def _list_tools_and_call(
                 )
                 tool_schema = _get_tool_schema(tool)
                 prepared_payload = _prepare_payload(tool_schema)
-                if DEBUG:
-                    print(f"Agentorist MCP payload for {TOOL_NAME}: {prepared_payload}")
                 result = await asyncio.wait_for(
                     session.call_tool(TOOL_NAME, prepared_payload),
                     timeout=timeout_seconds,
@@ -141,8 +134,6 @@ async def _list_tools_and_call(
             tool = next(tool for tool in tools.tools if _get_tool_name(tool) == TOOL_NAME)
             tool_schema = _get_tool_schema(tool)
             prepared_payload = _prepare_payload(tool_schema)
-            if DEBUG:
-                print(f"Agentorist MCP payload for {TOOL_NAME}: {prepared_payload}")
             result = await asyncio.wait_for(
                 session.call_tool(TOOL_NAME, prepared_payload),
                 timeout=timeout_seconds,
@@ -230,7 +221,6 @@ async def _run_search(payload: dict) -> dict:
 
 async def search_local_places(destination: str, venue: str | None = None) -> dict:
     """Search local places using the Agentorist MCP tool."""
-    _t0 = time.perf_counter()
     if not destination:
         return {
             "status": "error",
@@ -248,11 +238,7 @@ async def search_local_places(destination: str, venue: str | None = None) -> dic
         "agent_client": "TripPlanner",
     }
 
-    _t1 = time.perf_counter()
-    result = await _run_search(payload)
-    _t2 = time.perf_counter()
-    print(f"[TOOL] search_local_places took {_t2-_t1:.3f}s (total call: {_t2-_t0:.3f}s)")
-    return result
+    return await _run_search(payload)
 
 
 async def search_hotels(destination: str) -> dict:
@@ -273,12 +259,4 @@ async def search_hotels(destination: str) -> dict:
         "agent_client": "TripPlanner",
     }
 
-    result = await _run_search(payload)
-
-    # Print first returned hotel record for verification
-    if DEBUG and result.get("status") == "success":
-        results = result.get("data", {}).get("results", [])
-        if results:
-            print(f"[search_hotels] First hotel record: {results[0]}")
-
-    return result
+    return await _run_search(payload)

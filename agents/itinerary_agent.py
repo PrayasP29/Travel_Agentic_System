@@ -1,7 +1,5 @@
-
 """Itinerary agent that turns gathered data into a draft trip plan."""
 
-import time
 from langchain.agents import create_agent
 
 from cache import cache_service
@@ -9,33 +7,7 @@ from cache.cache_keys import CacheKeys, ITINERARY_TTL
 from config.models import get_text_llm
 from agents.report_formatter_agent import report_formatter_agent
 from utils.error_categories import classify_error
-
-
-def _last_message_content(response: dict) -> str:
-    """Extract the final message content from a LangChain agent response."""
-    if response is None:
-        return ""
-
-    if isinstance(response, str):
-        return response
-
-    if isinstance(response, dict):
-        messages = response.get("messages", [])
-    else:
-        messages = getattr(response, "messages", None)
-        if messages is None and hasattr(response, "content"):
-            return getattr(response, "content", "") or ""
-        if messages is None:
-            return str(response)
-
-    if not messages:
-        return ""
-
-    last_message = messages[-1]
-    if isinstance(last_message, dict):
-        return last_message.get("content", "") or ""
-
-    return getattr(last_message, "content", "") or str(last_message)
+from utils.helpers import last_message_content
 
 
 def _build_fallback_itinerary(state: dict) -> str:
@@ -74,8 +46,6 @@ Local Planning Notes:
 
 async def itinerary_agent(state: dict) -> dict:
     """Create a concise itinerary using flights, hotels, weather, and search output."""
-    _timer_start = time.time()
-    print(f"[TIMER] itinerary_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -88,7 +58,6 @@ async def itinerary_agent(state: dict) -> dict:
     if cached is not None:
         updated_state.update(cached)
         updated_state["errors"] = errors
-        print(f"[TIMER] itinerary_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
         return updated_state
 
     try:
@@ -133,7 +102,7 @@ async def itinerary_agent(state: dict) -> dict:
             }
         )
 
-        itinerary = _last_message_content(response)
+        itinerary = last_message_content(response)
 
         updated_state["itinerary"] = (
             itinerary
@@ -147,7 +116,6 @@ async def itinerary_agent(state: dict) -> dict:
 
         updated_state["itinerary_status"] = "completed"
 
-        # Generate final formatted report
         report_res = report_formatter_agent(updated_state)
         if isinstance(report_res, dict):
             updated_state["final_report"] = report_res.get("final_report", "")
@@ -190,5 +158,4 @@ async def itinerary_agent(state: dict) -> dict:
         updated_state["status"] = "failed"
 
     updated_state["errors"] = errors
-    print(f"[TIMER] itinerary_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state

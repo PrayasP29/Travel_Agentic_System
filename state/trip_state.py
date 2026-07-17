@@ -82,7 +82,6 @@ class TripPlannerState(TypedDict):
     hotel_booking_links: Annotated[list[str], operator.add]
     hotel_price_details: Annotated[list[str], operator.add]
     recommended_flight_price: float
-    recommended_hotel_price: float
 
     # Supervisor-generated execution plan — which agents to run
     execution_plan: dict
@@ -91,6 +90,3 @@ class TripPlannerState(TypedDict):
     local_results: dict
     local_notes: str
     local_status: str
-
-
-TripState = TripPlannerState

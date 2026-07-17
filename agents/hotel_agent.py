@@ -1,6 +1,5 @@
 """Hotel agent for summarizing hotel search results."""
 
-import time
 from langchain.agents import create_agent
 
 from cache import cache_service
@@ -8,14 +7,7 @@ from cache.cache_keys import CacheKeys, HOTEL_TTL
 from config.models import get_text_llm
 from tools.hotel_tools import search_hotels
 from utils.error_categories import classify_error
-
-
-def _last_message_content(response: dict) -> str:
-    """Extract the final message content from a LangChain agent response."""
-    messages = response.get("messages", [])
-    if not messages:
-        return ""
-    return getattr(messages[-1], "content", "") or ""
+from utils.helpers import last_message_content
 
 
 def _format_price(place: dict) -> str:
@@ -85,8 +77,6 @@ def _format_hotel_notes(results: list, agent_notes: str) -> str:
 
 async def hotel_agent(state: dict) -> dict:
     """Use a LangChain agent to recommend hotels grounded in MCP data only."""
-    _timer_start = time.time()
-    print(f"[TIMER] hotel_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -99,7 +89,6 @@ async def hotel_agent(state: dict) -> dict:
     if cached is not None:
         updated_state.update(cached)
         updated_state["errors"] = errors
-        print(f"[TIMER] hotel_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
         return updated_state
 
     try:
@@ -116,10 +105,8 @@ async def hotel_agent(state: dict) -> dict:
                 hotel_result.get("error", "Unknown error")
             )
             updated_state["errors"] = errors
-            print(f"[TIMER] hotel_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
             return updated_state
 
-        # Extract real fields directly from MCP results — no estimation
         results             = hotel_result.get("data", {}).get("results", [])
         hotel_booking_links = []
         hotel_price_details = []
@@ -140,7 +127,6 @@ async def hotel_agent(state: dict) -> dict:
             price_category = place.get("price")
             address        = place.get("address") or place.get("location") or ""
 
-            # Store structured MCP price data — no numeric conversion
             hotel_price_details.append({
                 "hotel":          name,
                 "price_category": price_category,
@@ -206,7 +192,7 @@ async def hotel_agent(state: dict) -> dict:
         )
 
         response    = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
-        hotel_notes = _last_message_content(response)
+        hotel_notes = last_message_content(response)
 
         updated_state["hotel_booking_links"] = hotel_booking_links
         updated_state["hotel_price_details"] = hotel_price_details
@@ -232,5 +218,4 @@ async def hotel_agent(state: dict) -> dict:
         updated_state["hotel_status"]  = "failed"
 
     updated_state["errors"] = errors
-    print(f"[TIMER] hotel_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state

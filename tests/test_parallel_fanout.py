@@ -6,7 +6,7 @@ import unittest
 import uuid
 from unittest.mock import patch
 
-from graph.trip_graph import build_trip_graph, _route_from_supervisor, _make_route_after
+from graph.trip_graph import build_trip_graph, _route_from_supervisor
 
 
 class TestParallelRouting(unittest.TestCase):
@@ -61,31 +61,6 @@ class TestParallelRouting(unittest.TestCase):
         self.assertEqual(names, {"flight_agent", "weather_agent",
                                  "search_agent", "local_agent"})
 
-    def test_route_after_search_routes_to_local(self):
-        """_make_route_after('search_agent') returns 'local_agent' when local
-        is enabled."""
-        state = {"execution_plan": self.all_enabled}
-        router = _make_route_after("search_agent")
-        result = router(state)
-        self.assertEqual(result, "local_agent")
-
-    def test_route_after_search_skips_to_itinerary(self):
-        """_make_route_after('search_agent') returns 'itinerary_agent' when
-        local is not enabled."""
-        plan = dict(self.all_enabled)
-        plan["run_local_agent"] = False
-        state = {"execution_plan": plan}
-        router = _make_route_after("search_agent")
-        result = router(state)
-        self.assertEqual(result, "itinerary_agent")
-
-    def test_route_after_local_always_goes_to_itinerary(self):
-        """_make_route_after('local_agent') always returns 'itinerary_agent'
-        since local is the last sequential agent."""
-        state = {"execution_plan": self.all_enabled}
-        router = _make_route_after("local_agent")
-        result = router(state)
-        self.assertEqual(result, "itinerary_agent")
 
 
 class TestParallelGraphExecution(unittest.TestCase):

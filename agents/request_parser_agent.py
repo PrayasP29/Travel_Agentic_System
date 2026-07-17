@@ -21,12 +21,7 @@ _WORD_NUMBERS = {
 }
 
 
-def _last_message_content(response: dict) -> str:
-    """Extract the final message content from a LangChain agent response."""
-    messages = response.get("messages", [])
-    if not messages:
-        return ""
-    return getattr(messages[-1], "content", "") or ""
+from utils.helpers import last_message_content
 
 
 def _normalize_text(value: Any) -> str:
@@ -142,7 +137,7 @@ def request_parser_agent(user_request: str) -> dict:
         f"request: {user_request}"
     )
     response = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
-    payload = _extract_json_payload(_last_message_content(response))
+    payload = _extract_json_payload(last_message_content(response))
 
     return {
         "origin": _normalize_text(payload.get("origin")),

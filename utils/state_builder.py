@@ -55,5 +55,4 @@ def build_trip_state(parsed_request: Mapping[str, Any]) -> TripPlannerState:
         "hotel_booking_links": [],
         "hotel_price_details": [],
         "recommended_flight_price": 0.0,
-        "recommended_hotel_price": 0.0,
     }

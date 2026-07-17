@@ -1,6 +1,5 @@
 """Weather agent for retrieving and summarizing forecast details."""
 
-import time
 from langchain.agents import create_agent
 
 from cache import cache_service
@@ -8,20 +7,11 @@ from cache.cache_keys import CacheKeys, WEATHER_TTL
 from config.models import get_text_llm
 from tools.weather_tools import get_weather
 from utils.error_categories import classify_error
-
-
-def _last_message_content(response: dict) -> str:
-    """Extract the final message content from a LangChain agent response."""
-    messages = response.get("messages", [])
-    if not messages:
-        return ""
-    return getattr(messages[-1], "content", "") or ""
+from utils.helpers import last_message_content
 
 
 async def weather_agent(state: dict) -> dict:
     """Use a LangChain agent to decide whether weather lookup is needed."""
-    _timer_start = time.time()
-    print(f"[TIMER] weather_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -33,7 +23,6 @@ async def weather_agent(state: dict) -> dict:
     if cached is not None:
         updated_state.update(cached)
         updated_state["errors"] = errors
-        print(f"[TIMER] weather_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
         return updated_state
 
     try:
@@ -45,7 +34,6 @@ async def weather_agent(state: dict) -> dict:
                 weather_result.get("error", "Unknown error")
             )
             updated_state["errors"] = errors
-            print(f"[TIMER] weather_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
             return updated_state
 
         agent = create_agent(
@@ -93,7 +81,7 @@ async def weather_agent(state: dict) -> dict:
         )
 
         response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
-        weather_notes = _last_message_content(response)
+        weather_notes = last_message_content(response)
 
         updated_state["weather_notes"] = (
             weather_notes or "Weather agent completed without additional notes."
@@ -111,5 +99,4 @@ async def weather_agent(state: dict) -> dict:
         updated_state["weather_status"] = "failed"
 
     updated_state["errors"] = errors
-    print(f"[TIMER] weather_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state

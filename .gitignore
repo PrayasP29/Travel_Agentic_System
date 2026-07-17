@@ -113,7 +113,7 @@ build/
 .env
 .env.*
 !.env.example
-
+ARCHITECTURE.md
 # Local development / deployment files
 GITHUB_AUDIT.md
 runtime.txt

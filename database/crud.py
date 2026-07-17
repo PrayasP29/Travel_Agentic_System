@@ -4,7 +4,6 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import AsyncSessionLocal
 from database.models import Trip, User, RefreshToken
 from auth.security import hash_password
 

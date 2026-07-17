@@ -2,7 +2,6 @@
 
 import json
 import re
-import time
 
 from langchain.agents import create_agent
 
@@ -11,8 +10,7 @@ from cache.cache_keys import CacheKeys, FLIGHT_TTL
 from config.models import get_text_llm
 from tools.flight_tools import search_flights
 from utils.error_categories import classify_error
-
-DEBUG = False
+from utils.helpers import last_message_content
 
 
 def _normalize_flight(it: dict) -> dict:
@@ -68,14 +66,6 @@ def parse_flight_data(flight_result: dict) -> list:
     except Exception:
         pass
     return []
-
-
-def _last_message_content(response: dict) -> str:
-    """Extract the final message content from a LangChain agent response."""
-    messages = response.get("messages", [])
-    if not messages:
-        return ""
-    return getattr(messages[-1], "content", "") or ""
 
 
 def _format_flight_notes(flights_list: list, fallback_notes: str) -> str:
@@ -173,8 +163,6 @@ def _format_flight_notes(flights_list: list, fallback_notes: str) -> str:
 
 async def flight_agent(state: dict) -> dict:
     """Run deterministic flight search, then summarize results."""
-    _timer_start = time.time()
-    print(f"[TIMER] flight_agent START: {_timer_start:.2f}")
     updated_state = dict(state)
     errors = list(updated_state.get("errors") or [])
 
@@ -188,28 +176,9 @@ async def flight_agent(state: dict) -> dict:
     if cached is not None:
         updated_state.update(cached)
         updated_state["errors"] = errors
-        print(f"[TIMER] flight_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s) [CACHE HIT]")
         return updated_state
 
-    if DEBUG:
-        print("\n" + "=" * 80)
-        print("FLIGHT AGENT RECEIVED STATE")
-        print("=" * 80)
-        print("origin =", updated_state.get("origin"))
-        print("destination =", updated_state.get("destination"))
-        print("event_date =", updated_state.get("event_date"))
-        print("travelers =", updated_state.get("travelers"))
-        print("\nFULL STATE:")
-        print(updated_state)
-
     try:
-        if DEBUG:
-            print("\nSEARCH_FLIGHTS INPUTS")
-            print("origin =", origin)
-            print("destination =", destination)
-            print("event_date =", event_date)
-            print("travelers =", travelers)
-
         flight_result = await search_flights(
             origin=origin,
             destination=destination,
@@ -223,7 +192,6 @@ async def flight_agent(state: dict) -> dict:
             )
             updated_state["flight_status"] = "failed"
             updated_state["errors"] = errors
-            print(f"[TIMER] flight_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
             return updated_state
 
         flights_list = parse_flight_data(flight_result)
@@ -252,7 +220,6 @@ async def flight_agent(state: dict) -> dict:
         else:
             flights_summary_for_agent = "No flights returned in flight_result."
 
-        # Extract default booking link and price from flights_list
         booking_link = ""
         flight_price = 0.0
         if flights_list:
@@ -304,9 +271,8 @@ async def flight_agent(state: dict) -> dict:
             f"Available Flights:\n{flights_summary_for_agent}"
         )
         response     = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
-        flight_notes = _last_message_content(response)
+        flight_notes = last_message_content(response)
 
-        # Post-process response to extract actual selected flight's booking link and price
         selected_booking_link = booking_link
         urls = re.findall(r'https?://[^\s\)\*]+', flight_notes)
         if urls:
@@ -348,5 +314,4 @@ async def flight_agent(state: dict) -> dict:
         updated_state["flight_status"]  = "failed"
 
     updated_state["errors"] = errors
-    print(f"[TIMER] flight_agent END: {time.time():.2f} (elapsed: {time.time() - _timer_start:.1f}s)")
     return updated_state
