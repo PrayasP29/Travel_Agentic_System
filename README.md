@@ -14,7 +14,7 @@
 Trippin' accepts a natural-language request such as:
 
 ```text
-Plan a trip from Miami to New York for a concert at Prudential Center on 2026-07-15.
+Plan a trip from Miami to New York for a concert at Prudential Center on yyyy-mm-dd.
 ```
 
 It extracts structured trip fields, creates a trip record, runs a LangGraph workflow of specialist agents for flights, hotels, weather, destination research, local discovery, and itinerary generation, then returns a formatted Markdown report through a REST API or Server-Sent Events stream.
