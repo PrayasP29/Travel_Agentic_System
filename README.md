@@ -1,458 +1,603 @@
-# Agentic Trip Planner
+# Trippin'
 
-> An agentic AI travel planning system that coordinates specialized agents for flight discovery, hotel recommendations, weather analysis, destination research, and itinerary generation through a LangGraph-powered workflow.
+> Multi-agent travel planning backend that turns a trip request into a persisted Markdown travel report.
 
-![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
-![LangGraph](https://img.shields.io/badge/LangGraph-workflow-1C3C3C?style=flat-square)
-![LangChain](https://img.shields.io/badge/LangChain-agents-1C3C3C?style=flat-square)
-![Groq](https://img.shields.io/badge/Groq-LLM-F55036?style=flat-square)
-![MCP Integration](https://img.shields.io/badge/MCP-integration-4B5563?style=flat-square)
-![SQLite Checkpointing](https://img.shields.io/badge/SQLite-checkpointing-003B57?style=flat-square&logo=sqlite&logoColor=white)
-![Status](https://img.shields.io/badge/Status-Active%20Development-2563EB?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.138.0-009688?logo=fastapi&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-1.2.6-1C3C3C)
+![LangChain](https://img.shields.io/badge/LangChain-1.3.11-1C3C3C)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-asyncpg-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-cache%20%2B%20rate%20limits-DC382D?logo=redis&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-unit%20suite-blue)
+![Last Updated](https://img.shields.io/badge/last%20updated-2026--07--26-informational)
 
-Multi-agent travel planning using LangGraph, MCP integrations, and LLM-powered itinerary generation.
+Trippin' accepts a natural-language request such as:
 
----
+```text
+Plan a trip from Miami to New York for a concert at Prudential Center on 2026-07-15.
+```
 
-# Overview
+It extracts structured trip fields, creates a trip record, runs a LangGraph workflow of specialist agents for flights, hotels, weather, destination research, local discovery, and itinerary generation, then returns a formatted Markdown report through a REST API or Server-Sent Events stream.
 
-The project demonstrates a multi-agent travel workflow built around LangGraph shared state. A user request is parsed into structured trip fields, then passed through specialist agents for flight search, hotel search, weather lookup, destination research, local discovery, itinerary generation, and final report formatting.
+This repository contains the backend/API system. No frontend application, Dockerfile, or production deployment manifests are currently present in the codebase.
 
-The workflow is exposed through a **FastAPI REST API** (`backend/api/app.py`), a **CLI** (`main.py`), and Python service functions (`services.trip_planner_service.plan_trip()`). Additional conversation helpers in `services.conversation_service` support multi-turn collection of missing required fields.
+## Table of Contents
 
-Main workflow:
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [System Flow](#system-flow)
+- [API Surfaces](#api-surfaces)
+- [Backend Architecture](#backend-architecture)
+- [AI Agent Workflow](#ai-agent-workflow)
+- [Streaming](#streaming)
+- [Authentication](#authentication)
+- [Database](#database)
+- [Redis](#redis)
+- [LangGraph](#langgraph)
+- [Technology Stack](#technology-stack)
+- [Folder Structure](#folder-structure)
+- [Installation](#installation)
+- [Environment Variables](#environment-variables)
+- [Usage](#usage)
+- [Error Handling](#error-handling)
+- [Performance Optimizations](#performance-optimizations)
+- [Security](#security)
+- [Deployment Notes](#deployment-notes)
+- [Development Workflow](#development-workflow)
+- [Known Limitations](#known-limitations)
+- [Roadmap](#roadmap)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
+- [Contact](#contact)
 
-1. Parse the user request into `origin`, `destination`, `travelers`, `venue`, and `event_date`.
-2. Build a LangGraph-compatible `TripPlannerState`.
-3. Run the compiled LangGraph workflow with SQLite checkpointing.
-4. Execute a coordinator agent to validate state, then a supervisor agent to determine which specialist agents to run.
-5. Call external MCP/API-backed tools for flights, hotels, weather, and search — skipping agents whose data is already available.
-6. Generate an itinerary and assemble a final Markdown report.
+## Overview
 
-# Architecture
+Trip planning requires stitching together several slow, independent data sources: flights, hotels, weather, venue context, restaurants, transit, and local recommendations. Trippin' models that work as a stateful multi-agent workflow instead of a single monolithic prompt.
 
-The LangGraph workflow is defined in `graph/trip_graph.py`. It uses conditional agent routing based on the supervisor's execution plan with a SQLite checkpointer from `memory/sqlite_checkpoint.py`.
+The system is for API consumers, hackathon demos, engineers, and contributors who want a backend that can:
+
+| Area | What Trippin' does |
+|---|---|
+| Problem | Reduces manual research across travel services into one trip-planning workflow. |
+| Solution | Uses a FastAPI API and LangGraph state machine to coordinate specialist agents. |
+| Output | Returns Markdown report text, itinerary text, trip metadata, and persisted history. |
+| Users | Authenticated users with per-user trip history and protected trip access. |
+| Persistence | Stores users/trips in PostgreSQL and workflow checkpoints in SQLite. |
+
+## Features
+
+| Category | Implemented capability |
+|---|---|
+| Request intake | Accepts either structured fields or a natural-language `sentence`. |
+| Natural-language parsing | Groq-backed parser extracts `origin`, `destination`, `travelers`, `venue`, and `event_date`. |
+| Authentication | Email/password registration, login, JWT access tokens, refresh tokens, `/auth/me`, and logout. |
+| Trip planning | Creates a trip record, executes the graph, updates final status and report fields. |
+| Multi-agent execution | Coordinator, supervisor, flight, hotel, weather, search, local, and itinerary nodes. |
+| Live execution | `/trips/plan/stream` emits Server-Sent Events for agent progress and final result. |
+| History | Authenticated users can list prior trips and fetch trip details. |
+| Reports | Deterministic report formatter assembles final Markdown from state. |
+| Resume | Thread checkpoints can be inspected and incomplete workflows can be resumed. |
+| Caching | Redis-backed cache for flight, hotel, weather, search, and itinerary outputs. |
+| Rate limiting | Redis-backed login, registration, trip-failure, and daily trip-quota limits. |
+| Validation | Pydantic schemas plus parser/state validation before expensive graph execution. |
+
+## Architecture
 
 ```mermaid
 flowchart TD
-    A[User request] --> B[request_parser_agent]
-    B --> C[build_trip_state]
-    C --> D[LangGraph invoke]
-    D --> E[coordinator_agent]
-    E --> F[supervisor_agent]
-    F --> G{execution_plan}
-    G -->|flight| H[flight_agent]
-    G -->|hotel| I[hotel_agent]
-    G -->|weather| J[weather_agent]
-    G -->|search| K[search_agent]
-    G -->|local| L[local_agent]
-    H --> M{next agent}
-    I --> M
-    J --> M
-    K --> M
-    L --> M
-    M -->|continue| G
-    M -->|done| N[itinerary_agent]
-    N --> O[Final Markdown report]
-
-    H --> H1[Kiwi MCP search-flight]
-    I --> I1[Agentorist MCP search]
-    J --> J1[LiveDataLink MCP weather tools]
-    K --> K1[Tavily Search API]
-    L --> L1[Agentorist MCP search]
+    Client[HTTP client or CLI] --> API[FastAPI app]
+    API --> Auth[JWT auth dependency]
+    API --> RateLimit[Redis rate limiter]
+    API --> Parser[Request parser agent]
+    Parser --> StateBuilder[TripPlannerState builder]
+    StateBuilder --> TripDB[(PostgreSQL users/trips)]
+    StateBuilder --> Graph[LangGraph StateGraph]
+    Graph --> Coordinator[Coordinator]
+    Coordinator --> Supervisor[Supervisor]
+    Supervisor --> Flight[Flight agent]
+    Supervisor --> Hotel[Hotel agent]
+    Supervisor --> Weather[Weather agent]
+    Supervisor --> Search[Search agent]
+    Supervisor --> Local[Local agent]
+    Flight --> Itinerary[Itinerary agent]
+    Hotel --> Itinerary
+    Weather --> Itinerary
+    Search --> Itinerary
+    Local --> Itinerary
+    Itinerary --> Formatter[Report formatter]
+    Formatter --> TripDB
+    Graph --> Checkpoints[(SQLite checkpoints)]
+    Flight --> Redis[(Redis cache)]
+    Hotel --> Redis
+    Weather --> Redis
+    Search --> Redis
+    Itinerary --> Redis
 ```
 
-Execution flow:
+## System Flow
 
-| Step | Module | Purpose |
-| --- | --- | --- |
-| Request parsing | `agents/request_parser_agent.py` | Uses the Groq-backed LangChain agent to extract structured trip fields from natural language. |
-| State creation | `utils/state_builder.py` | Normalizes parsed fields and initializes booking, pricing, and error fields. |
-| Graph orchestration | `graph/trip_graph.py` | Routes agents conditionally based on the supervisor's execution plan and stores checkpoints in SQLite. |
-| Agent execution | `agents/*.py` | Runs each specialist agent (coordinator, supervisor, flight, hotel, weather, search, local, itinerary) and appends results to shared state. |
-| Report generation | `agents/itinerary_agent.py` | Calls `report_formatter_agent` internally to deterministically assemble the final Markdown report from state. |
+```mermaid
+sequenceDiagram
+    participant U as User/API Client
+    participant A as FastAPI
+    participant R as Redis
+    participant P as Parser
+    participant D as PostgreSQL
+    participant G as LangGraph
+    participant C as SQLite Checkpoints
 
-# Features
+    U->>A: POST /trips/plan
+    A->>A: Validate TripPlanRequest
+    A->>A: Verify Bearer JWT
+    A->>R: Check failure lock + daily quota
+    alt sentence request
+        A->>P: Extract structured trip fields
+    end
+    A->>D: Create trip status=in_progress
+    A->>G: Invoke graph with thread_id
+    G->>C: Save checkpoints after graph steps
+    G->>G: Run specialist agents
+    G-->>A: Final state
+    A->>D: Update trip status=completed/failed
+    A->>R: Record success or failure
+    A-->>U: Report, itinerary, trip_id, thread_id
+```
 
-- Natural-language request parsing into structured trip fields.
-- Conditional LangGraph workflow — agents are skipped when data is already present via the supervisor's execution plan.
-- SQLite-backed LangGraph checkpointing with generated thread IDs.
-- Flight search through the Kiwi MCP `search-flight` tool.
-- Hotel search through the Agentorist MCP `search` tool.
-- Weather forecast and air quality lookup through LiveDataLink MCP tools.
-- Destination research through Tavily web search.
-- Local discovery search through the Agentorist MCP tool (`local_agent`).
-- LLM-generated summaries for supervisor, flight, hotel, weather, search, and itinerary outputs.
-- Deterministic final report formatting (no LLM) assembled by `report_formatter_agent`.
-- Conversation service for collecting missing `origin`, `destination`, and `event_date` fields.
-- FastAPI REST API with interactive Swagger/OpenAPI documentation at `/docs`.
-- CLI entry point (`main.py`) for running trip plans from the command line.
-- Request validation via Pydantic models (`backend/api/schemas/`).
-- Structured logging with per-request correlation IDs.
-- CORS middleware for web frontend integration.
-- Resume interrupted trip workflows via API or service functions.
-- Unit tests for state building, trip planning service behavior, and conversation state handling.
-- Groq Whisper transcription helper in `config/models.py`.
+## API Surfaces
 
-# Project Structure
+The FastAPI app is created in `backend/api/app.py`, includes Swagger docs at `/docs`, and registers `/auth` plus `/trips` routes.
+
+### Authentication
+
+| Method | Path | Auth | Purpose |
+|---|---|---:|---|
+| `POST` | `/auth/register` | No | Create a user with email, password, and optional full name. |
+| `POST` | `/auth/login` | No | Issue access and refresh tokens. |
+| `POST` | `/auth/refresh` | No | Issue a new access token from a valid refresh token. |
+| `GET` | `/auth/me` | Yes | Return the current user profile. |
+| `POST` | `/auth/logout` | Yes | Revoke the supplied refresh token if it belongs to the user. |
+
+### Trips
+
+| Method | Path | Auth | Purpose |
+|---|---|---:|---|
+| `GET` | `/trips/health` | No | Static API health response. |
+| `POST` | `/trips/plan` | Yes | Run trip planning and return the final response. |
+| `POST` | `/trips/plan/stream` | Yes | Run trip planning with SSE progress events. |
+| `GET` | `/trips/history?limit=20&offset=0` | Yes | List authenticated user's trips. |
+| `GET` | `/trips/{identifier}` | Yes | Return trip detail for a UUID, or checkpoint state for a thread id. |
+| `POST` | `/trips/{thread_id}/resume` | Yes | Resume an incomplete checkpointed workflow. |
+
+## Backend Architecture
+
+| Layer | Files | Responsibility |
+|---|---|---|
+| API | `backend/api/app.py`, `backend/api/routes/` | FastAPI app factory, middleware, exception handlers, auth and trip endpoints. |
+| Schemas | `backend/api/schemas/` | Pydantic request and response contracts. |
+| Services | `services/` | Trip planning, checkpoint resume, conversation helpers, rate limiting. |
+| Graph | `graph/trip_graph.py` | LangGraph topology and supervisor fan-out routing. |
+| Agents | `agents/` | LLM/tool-backed domain workers and deterministic report formatting. |
+| Tools | `tools/` | Kiwi MCP, Agentorist MCP, LiveDataLink MCP, and Tavily wrappers. |
+| Auth | `auth/` | Password hashing, JWT creation/verification, user dependency. |
+| Database | `database/`, `alembic/` | SQLAlchemy models, CRUD, async sessions, migrations. |
+| Cache | `cache/` | Redis client, key builder, JSON cache abstraction, metrics counters. |
+| State | `state/trip_state.py` | Shared LangGraph state schema and reducers. |
+
+## AI Agent Workflow
+
+```mermaid
+graph LR
+    START --> coordinator_agent
+    coordinator_agent --> supervisor_agent
+    supervisor_agent -->|Send if enabled| flight_agent
+    supervisor_agent -->|Send if enabled| hotel_agent
+    supervisor_agent -->|Send if enabled| weather_agent
+    supervisor_agent -->|Send if enabled| search_agent
+    supervisor_agent -->|Send if enabled| local_agent
+    supervisor_agent -->|No enabled agents| itinerary_agent
+    flight_agent --> itinerary_agent
+    hotel_agent --> itinerary_agent
+    weather_agent --> itinerary_agent
+    search_agent --> itinerary_agent
+    local_agent --> itinerary_agent
+    itinerary_agent --> END
+```
+
+| Agent | Implementation | Responsibility |
+|---|---|---|
+| Request parser | `agents/request_parser_agent.py` | Converts free text into structured JSON fields. |
+| Coordinator | `agents/coordinator.py` | Validates required state and initializes defaults. |
+| Supervisor | `agents/supervisor_agent.py` | Builds `execution_plan` booleans and writes supervisor notes. |
+| Flight | `agents/flight_agent.py` | Calls Kiwi MCP `search-flight`, normalizes flights, selects/summarizes options. |
+| Hotel | `agents/hotel_agent.py` | Calls Agentorist MCP search for hotels and preserves ratings, addresses, price categories, and links. |
+| Weather | `agents/weather_agent.py` | Calls LiveDataLink forecast/current/AQI tools and summarizes travel weather. |
+| Search | `agents/search_agent.py` | Calls Tavily once for attractions, restaurants, transportation, and local tips. |
+| Local | `agents/local_agent.py` | Calls Agentorist local discovery for nearby places. |
+| Itinerary | `agents/itinerary_agent.py` | Synthesizes available notes into an itinerary and invokes report formatting. |
+| Report formatter | `agents/report_formatter_agent.py` | Deterministically formats the final Markdown travel report. |
+| Conversation helper | `agents/conversation_agent.py` | Detects missing fields and returns the next question for multi-turn flows. |
+
+## Streaming
+
+`POST /trips/plan/stream` returns `text/event-stream`.
+
+The route emits:
+
+| Event | Meaning |
+|---|---|
+| `progress` | Request received, node started, node completed, cache hit, or node failed. |
+| `error` | Top-level graph failure. |
+| `done` | Final report payload with `success`, `report`, `itinerary`, `trip_id`, and `thread_id`. |
+
+The implementation reads LangGraph `astream_events(..., version="v2")` and maps graph node events to user-facing progress messages.
+
+## Authentication
+
+Authentication is JWT-based:
+
+1. `POST /auth/register` hashes the password with bcrypt and creates a `User`.
+2. `POST /auth/login` verifies credentials and returns an access token plus refresh token.
+3. Protected endpoints use `get_current_active_user()` to decode the Bearer token and load the user from PostgreSQL.
+4. `POST /auth/refresh` validates a hashed refresh token stored in PostgreSQL and returns a new access token.
+5. `POST /auth/logout` revokes the submitted refresh token.
+
+Access tokens default to 30 minutes. Refresh tokens default to 7 days.
+
+## Database
+
+Application data is stored in PostgreSQL through SQLAlchemy async sessions.
+
+| Table | Model | Purpose |
+|---|---|---|
+| `users` | `User` | Account identity, password hash, active status, optional OAuth fields. |
+| `refresh_tokens` | `RefreshToken` | Hashed refresh tokens, expiry, revocation, optional device/IP fields. |
+| `trips` | `Trip` | Request text, origin, destination, venue, status, final report, agent details, errors, thread id, timestamps. |
+
+Alembic migrations exist in `alembic/versions/`, while app startup also calls `create_tables()` via SQLAlchemy metadata.
+
+## Redis
+
+Redis is used for both caching and rate limiting. Redis operations are designed to fail open: if the Redis client is unavailable, cache and limiter helpers return without blocking the primary request.
+
+| Namespace | TTL / Window | Purpose |
+|---|---:|---|
+| `tripplanner:flight:*` | 10 min | Flight search summaries. |
+| `tripplanner:hotel:*` | 20 min | Hotel recommendations. |
+| `tripplanner:weather:*` | 60 min | Weather summaries. |
+| `tripplanner:search:*` | 12 hr | Destination research summaries. |
+| `tripplanner:itinerary:*` | 10 min | Final itinerary/report state. |
+| `tripplanner:login:*` | 25 hr | Failed login counters and locks. |
+| `tripplanner:register:*` | 24 hr | Registration attempt counters and locks. |
+| `tripplanner:trip_failure:*` | 20 min | Trip failure counters and locks. |
+| `tripplanner:trip_success:*` | 24 hr | Daily successful trip quota. |
+
+## LangGraph
+
+`graph/trip_graph.py` compiles a `StateGraph[TripPlannerState]` with SQLite checkpointing from `memory.sqlite_checkpoint.get_checkpointer()`.
+
+Key implementation details:
+
+| Detail | Implementation |
+|---|---|
+| Checkpoint identity | API thread IDs are generated as `{user_id}-{uuid4.hex}`. |
+| Parallel routing | `_route_from_supervisor()` returns `Send()` objects for enabled agent nodes. |
+| Fan-in | Flight, hotel, weather, search, and local agents all point to `itinerary_agent`. |
+| State updates | Node wrappers return only changed keys to avoid LangGraph parallel update conflicts. |
+| Error reducer | `errors` uses `Annotated[list[str], operator.add]` so parallel branches accumulate errors. |
+
+## Technology Stack
+
+| Technology | Version / Source | Used for |
+|---|---:|---|
+| Python | 3.13+ | Runtime. |
+| FastAPI | 0.138.0 | REST API and OpenAPI docs. |
+| Uvicorn | 0.49.0 | ASGI server. |
+| LangGraph | 1.2.6 | Stateful workflow orchestration. |
+| LangChain | 1.3.11 | Agent construction. |
+| LangChain Groq / Groq | 1.1.3 / 0.37.1 | LLM calls. |
+| Tavily Python | 0.7.26 | Destination web search. |
+| MCP | 1.28.0 | External tool protocol clients. |
+| SQLAlchemy | 2.0.51 | Async ORM. |
+| asyncpg | 0.31.0 | PostgreSQL driver. |
+| Alembic | 1.18.5 | Database migrations. |
+| aiosqlite | 0.22.1 | SQLite checkpoint persistence. |
+| Redis | `redis` package in environment | Cache and rate limit backend. |
+| Pydantic | 2.13.4 | Validation and API schemas. |
+| pydantic-settings | 2.14.2 | Environment config. |
+| python-jose | 3.5.0 | JWT encode/decode. |
+| passlib + bcrypt | 1.7.4 / 4.2.1 | Password hashing. |
+
+## Folder Structure
 
 ```text
 trip_planner/
-├── agents/
-│   ├── conversation_agent.py
-│   ├── coordinator.py
-│   ├── flight_agent.py
-│   ├── hotel_agent.py
-│   ├── itinerary_agent.py
-│   ├── local_agent.py
-│   ├── report_formatter_agent.py
-│   ├── request_parser_agent.py
-│   ├── search_agent.py
-│   ├── supervisor_agent.py
-│   └── weather_agent.py
-├── backend/
-│   └── api/
-│       ├── routes/
-│       │   └── trips.py
-│       ├── schemas/
-│       │   ├── request.py
-│       │   └── response.py
-│       ├── app.py
-│       └── log_config.py
-├── config/
-│   ├── models.py
-│   └── settings.py
-├── data/
-│   ├── hotels_raw.json
-│   └── weather_raw.json
-├── graph/
-│   └── trip_graph.py
-├── memory/
-│   └── sqlite_checkpoint.py
-├── notebooks/
-│   ├── mcp_connection_test.ipynb
-│   └── trip_planner.ipynb
-├── services/
-│   ├── conversation_service.py
-│   └── trip_planner_service.py
-├── state/
-│   └── trip_state.py
-├── tests/
-│   ├── test_conversation_service.py
-│   ├── test_state_builder.py
-│   └── test_trip_planner_service.py
-├── tools/
-│   ├── flight_tools.py
-│   ├── hotel_tools.py
-│   ├── tavily_search.py
-│   ├── weather_mcp_client.py
-│   └── weather_tools.py
-├── utils/
-│   ├── file_utils.py
-│   └── state_builder.py
-├── main.py
-├── Procfile
-├── requirements.txt
-├── runtime.txt
-└── README.md
+├── agents/                  # Request parser, graph agents, report formatter
+├── alembic/                 # Database migration environment and versions
+├── auth/                    # JWT, password hashing, auth dependencies
+├── backend/api/             # FastAPI app, routes, schemas, logging
+├── cache/                   # Redis client, cache service, keys, metrics
+├── config/                  # Environment settings and Groq model factory
+├── database/                # SQLAlchemy engine, models, CRUD helpers
+├── docs/                    # Additional repository docs and audits
+├── graph/                   # LangGraph StateGraph definition
+├── memory/                  # SQLite checkpoint helper/database location
+├── recordings/              # Runtime directory referenced by settings
+├── services/                # Trip, conversation, and rate-limit services
+├── state/                   # TripPlannerState TypedDict
+├── tests/                   # Unit tests
+├── tools/                   # MCP and Tavily integration wrappers
+├── utils/                   # State builder, error categories, logging helpers
+├── ARCHITECTURE.md          # Architecture notes
+├── BACKEND_STRUCTURE.md     # Detailed backend analysis
+├── alembic.ini              # Alembic config
+├── main.py                  # CLI entry point
+├── requirements.txt         # Python dependencies
+└── .env.example             # Environment template
 ```
 
-Important files:
+## Installation
 
-| Path | Purpose |
-| --- | --- |
-| `backend/api/app.py` | FastAPI application factory with CORS, logging middleware, and exception handlers. |
-| `backend/api/routes/trips.py` | REST endpoints for trip planning, state retrieval, and checkpoint resumption. |
-| `backend/api/schemas/` | Pydantic request/response models for validation and OpenAPI documentation. |
-| `graph/trip_graph.py` | Builds and compiles the LangGraph workflow with conditional agent routing. |
-| `state/trip_state.py` | Defines the shared `TripPlannerState` fields. |
-| `services/trip_planner_service.py` | Provides `plan_trip()` and `resume_trip()` entry points used by CLI, API, and direct Python imports. |
-| `services/conversation_service.py` | Provides multi-turn collection and resume helpers. |
-| `config/settings.py` | Loads API keys, model names, MCP URLs, and directory settings from `.env`. |
-| `config/models.py` | Creates Groq text and transcription clients. |
-| `memory/sqlite_checkpoint.py` | Configures SQLite checkpoint persistence. |
-| `tools/` | Contains wrappers for Kiwi MCP, Agentorist MCP, LiveDataLink MCP, and Tavily. |
-| `main.py` | Command-line entry point for running trip plans. |
-| `tests/` | Contains `unittest` coverage for service and state behavior. |
+### Prerequisites
 
-# Agent Responsibilities
+- Python 3.13+
+- PostgreSQL with a database available for the app
+- Redis if caching/rate limiting should be enabled
+- Groq API key
+- Tavily API key
+- Network access to the configured MCP servers
 
-| Agent | Inputs | Outputs |
-| --- | --- | --- |
-| `coordinator_agent` | Current trip state after parsing. | Validated required fields, initialized defaults, `status`. |
-| `supervisor_agent` | Current trip state, required fields, prior agent outputs if present. | `supervisor_notes`, `execution_plan` (decides which agents to run), initialized state defaults, validation errors, `status` updates. |
-| `flight_agent` | `origin`, `destination`, `event_date`, `travelers`. | `flight_details`, `flight_notes`, `flight_status`, `flight_booking_link`, `recommended_flight_price`. |
-| `hotel_agent` | `destination`, `venue`, `event_date`, `travelers`, optional `budget` and `hotel_preferences`. | `hotel_details`, `hotel_notes`, `hotel_status`, `hotel_booking_links`, `hotel_price_details`. |
-| `weather_agent` | `destination`, `event_date`. | `weather_details`, `weather_notes`, `weather_status`. |
-| `search_agent` | `destination`, `venue`, optional `interests` and `trip_style`. | `search_results`, `search_notes`, `search_status`. |
-| `local_agent` | `destination`, `venue`. | `local_results`, `local_notes`, `local_status`. |
-| `itinerary_agent` | Destination details plus supervisor, flight, hotel, weather, search, and local notes. | `itinerary`, `itinerary_notes`, `itinerary_status`, `final_report` (via internal `report_formatter_agent` call), final `status`. |
-
-Supporting agents (not part of the compiled LangGraph workflow):
-
-| Agent | Current use |
-| --- | --- |
-| `request_parser_agent` | Called before graph execution to extract structured fields from user input. |
-| `conversation_agent` | Used by `conversation_service` to detect missing required fields and select the next question (deterministic, no LLM). |
-| `report_formatter_agent` | Called internally by `itinerary_agent` to deterministically assemble the final Markdown report from state — not a standalone graph node. |
-
-# Technologies Used
-
-| Category | Technology |
-| --- | --- |
-| Language | Python |
-| Agent workflow | LangGraph |
-| Agent framework | LangChain |
-| LLM provider | Groq via `langchain-groq` |
-| Text model default | `openai/gpt-oss-20b` |
-| Transcription model default | `whisper-large-v3` |
-| Search API | Tavily |
-| Flight provider | Kiwi MCP server |
-| Hotel/local provider | Agentorist MCP server |
-| Weather provider | LiveDataLink MCP server |
-| Checkpointing | LangGraph `SqliteSaver`, `langgraph-checkpoint-sqlite` |
-| API framework | FastAPI, Uvicorn |
-| Request validation | Pydantic |
-| Database | SQLAlchemy, aiosqlite |
-| Configuration | `pydantic-settings`, `.env`, `python-dotenv` |
-| Testing | Python `unittest` |
-| Notebook usage | Jupyter, IPython kernel |
-| Data utilities | pandas, numpy |
-| HTTP/MCP support | `requests`, `httpx`, `mcp` |
-
-# Installation
-
-The local virtual environment in this repository was observed running Python 3.13.7. The project does not currently pin a Python version in packaging metadata.
-
-1. Clone the repository and enter the project directory:
+### Clone and install
 
 ```bash
 git clone <repository-url>
 cd trip_planner
+python -m venv .venv
 ```
-
-2. Create and activate a virtual environment.
 
 Windows PowerShell:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
 macOS/Linux:
 
 ```bash
-python -m venv .venv
 source .venv/bin/activate
-```
-
-3. Install dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the project root:
+### Configure
+
+Copy `.env.example` to `.env` and set real values:
 
 ```env
-GROQ_API_KEY=
-TAVILY_API_KEY=
-LANGCHAIN_TRACING=true
-LANGCHAIN_API_KEY=
-LANGCHAIN_PROJECT=TripPlanner
-LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-KIWI_MCP_SERVER_URL=https://mcp.kiwi.com
-WEATHER_PROVIDER=livedatalink
-WEATHER_MCP_SERVER_URL=https://livedatalink.ai/mcp
-AGENTORIST_MCP_SERVER_URL=https://mcp.agentorist.com/mcp
+GROQ_API_KEY=...
+TAVILY_API_KEY=...
+SECRET_KEY=...
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/trippin_db
+REDIS_HOST=localhost
+REDIS_PORT=6379
 ```
 
-5. Run the test suite:
+Generate a local secret key:
 
 ```bash
-python -m unittest discover tests
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-6. Start the FastAPI development server:
+### Database
+
+The repository includes Alembic migrations:
 
 ```bash
-uvicorn backend.api.app:app --reload
+alembic upgrade head
 ```
 
-The API is now available at `http://localhost:8000` with interactive Swagger documentation at `http://localhost:8000/docs`.
+The FastAPI startup hook also calls `create_tables()`, which creates missing SQLAlchemy tables from metadata.
 
-For deployment (Heroku), the included `Procfile` starts the server automatically:
-
-```
-web: uvicorn backend.api.app:app --host 0.0.0.0 --port $PORT
-```
-
-# Configuration
-
-Configuration is loaded from `.env` by `config/settings.py`.
-
-| Variable | Required | Default | Used by |
-| --- | --- | --- | --- |
-| `GROQ_API_KEY` | Yes | Empty | Text LLM and audio transcription clients. |
-| `TAVILY_API_KEY` | Required for destination search | Empty | `tools/tavily_search.py`. |
-| `LANGCHAIN_API_KEY` | Optional | Empty | LangSmith tracing, when configured. |
-| `LANGCHAIN_TRACING` | Optional | `true` | Sets `LANGCHAIN_TRACING_V2`. |
-| `LANGCHAIN_PROJECT` | Optional | `TripPlanner` | LangSmith project name. |
-| `LANGCHAIN_ENDPOINT` | Optional | `https://api.smith.langchain.com` | LangSmith endpoint. |
-| `GROQ_TEXT_MODEL` | Optional | `openai/gpt-oss-20b` | Chat model name. |
-| `GROQ_TRANSCRIPTION_MODEL` | Optional | `whisper-large-v3` | Groq transcription model. |
-| `KIWI_MCP_SERVER_URL` | Required for flights | `https://mcp.kiwi.com` | Kiwi MCP flight search. |
-| `WEATHER_PROVIDER` | Optional | `livedatalink` | Weather provider label. |
-| `WEATHER_MCP_SERVER_URL` | Required for weather | `https://livedatalink.ai/mcp` | LiveDataLink MCP weather tools. |
-| `AGENTORIST_MCP_SERVER_URL` | Required for hotels | `https://mcp.agentorist.com/mcp` | Agentorist MCP hotel/local search. |
-| `RECORDINGS_DIR` | Optional | `recordings` | File utility helpers. |
-| `OUTPUTS_DIR` | Optional | `outputs` | Text report output helpers. |
-| `LOGS_DIR` | Optional | `logs` | File utility helpers. |
-
-Do not commit real API keys or service credentials.
-
-# Example Usage
-
-Run a complete planning request from Python:
-
-```python
-from services.trip_planner_service import plan_trip
-
-result = plan_trip(
-    "Plan a trip from Miami to New York for 2 travelers on 2026-08-15 "
-    "visiting Madison Square Garden"
-)
-
-print(result["thread_id"])
-print(result.get("final_report"))
-```
-
-Resume a graph checkpoint:
-
-```python
-from services.trip_planner_service import resume_trip
-
-snapshot = resume_trip("trip_00000000000000000000000000000001")
-print(snapshot["status"])
-```
-
-Use the multi-turn conversation service:
-
-```python
-from services.conversation_service import start_conversation, continue_conversation
-
-start = start_conversation("Plan a trip to New York on 2026-08-15")
-print(start["next_question"])
-
-continued = continue_conversation(start["thread_id"], "Miami")
-print(continued["status"])
-```
-
-Run a trip plan from the CLI:
+### Run locally
 
 ```bash
-python main.py --request "Plan a trip from Miami to New York for 2 travelers on 2026-08-15 visiting Madison Square Garden"
+uvicorn backend.api.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### API Usage
+Open:
 
-Start the FastAPI server, then use the REST API:
+- API: `http://127.0.0.1:8000`
+- Swagger docs: `http://127.0.0.1:8000/docs`
+- Health: `http://127.0.0.1:8000/trips/health`
 
-**Plan a trip using structured fields:**
+### CLI
 
 ```bash
-curl -X POST http://localhost:8000/api/trips/plan \
+python main.py --request "Plan a trip from MIA to EWR on 2026-07-15 for a concert at Prudential Center"
+```
+
+## Environment Variables
+
+| Variable | Required | Default | Purpose |
+|---|---:|---|---|
+| `GROQ_API_KEY` | Yes | empty | Required by `get_text_llm()`. |
+| `TAVILY_API_KEY` | Yes for search | empty | Used by Tavily destination search. |
+| `LANGCHAIN_API_KEY` | No | empty | Optional LangSmith tracing key. |
+| `LANGCHAIN_PROJECT` | No | `TripPlanner` | LangSmith project name. |
+| `LANGCHAIN_TRACING` | No | `true` | Sets `LANGCHAIN_TRACING_V2`. |
+| `LANGCHAIN_ENDPOINT` | No | `https://api.smith.langchain.com` | LangSmith endpoint. |
+| `GROQ_TEXT_MODEL` | No | `openai/gpt-oss-20b` | Chat model name. |
+| `GROQ_TRANSCRIPTION_MODEL` | No | `whisper-large-v3` | Defined in settings; no active route uses transcription. |
+| `KIWI_MCP_SERVER_URL` | No | `https://mcp.kiwi.com` | Flight MCP server. |
+| `WEATHER_PROVIDER` | No | `livedatalink` | Weather provider label. |
+| `WEATHER_MCP_SERVER_URL` | No | `https://livedatalink.ai/mcp` | Weather MCP server. |
+| `AGENTORIST_MCP_SERVER_URL` | No | `https://mcp.agentorist.com/mcp` | Hotel/local MCP server. |
+| `RECORDINGS_DIR` | No | `recordings` | Runtime directory setting. |
+| `OUTPUTS_DIR` | No | `outputs` | Runtime directory setting. |
+| `LOGS_DIR` | No | `logs` | Runtime directory setting. |
+| `DATABASE_URL` | Yes | PostgreSQL local placeholder in code | SQLAlchemy async database URL. |
+| `SECRET_KEY` | Yes | empty | JWT signing key; app raises if missing. |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `30` | Access token lifetime. |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | No | `7` | Refresh token lifetime. |
+| `GOOGLE_CLIENT_ID` | No | empty | Present in `.env.example`; no active OAuth routes. |
+| `GOOGLE_CLIENT_SECRET` | No | empty | Present in `.env.example`; no active OAuth routes. |
+| `GITHUB_CLIENT_ID` | No | empty | Present in `.env.example`; no active OAuth routes. |
+| `GITHUB_CLIENT_SECRET` | No | empty | Present in `.env.example`; no active OAuth routes. |
+| `REDIS_HOST` | No | `localhost` | Redis host. |
+| `REDIS_PORT` | No | `6379` | Redis port. |
+| `REDIS_DB` | No | `0` | Redis DB index. |
+| `REDIS_PASSWORD` | No | empty | Redis password. |
+| `REDIS_DEFAULT_TTL` | No | `1800` | Default cache TTL. |
+| `REDIS_ENABLED` | No | `true` | Enables Redis client creation. |
+| `RATE_LIMIT_ENABLED` | No | `true` | Enables Redis-backed rate limits. |
+| `LOGIN_MAX_ATTEMPTS` | No | `5` | Failed login attempts before lock. |
+| `LOGIN_LOCK_HOURS` | No | `25` | Login lock duration. |
+| `REGISTER_MAX_ATTEMPTS` | No | `5` | Registration attempts before lock. |
+| `REGISTER_LOCK_HOURS` | No | `24` | Registration lock duration. |
+| `TRIP_FAILURE_MAX_ATTEMPTS` | No | `3` | Failed trips before lock. |
+| `TRIP_FAILURE_LOCK_MINUTES` | No | `20` | Trip failure lock duration. |
+| `TRIP_SUCCESS_DAILY_LIMIT` | No | `2` | Daily successful trip quota. |
+| `TRIP_SUCCESS_WINDOW_HOURS` | No | `24` | Quota window. |
+
+## Usage
+
+1. Start PostgreSQL and Redis.
+2. Start the API with Uvicorn.
+3. Register a user.
+4. Login and store the returned access token.
+5. Call `/trips/plan` or `/trips/plan/stream`.
+6. Fetch `/trips/history` or `/trips/{trip_id}` to review persisted runs.
+
+Example structured request:
+
+```bash
+curl -X POST http://127.0.0.1:8000/trips/plan \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
-  -d '{
-    "origin": "MIA",
-    "destination": "EWR",
-    "event_date": "2026-08-15",
-    "venue": "Prudential Center"
-  }'
+  -d "{\"origin\":\"MIA\",\"destination\":\"EWR\",\"event_date\":\"2026-07-15\",\"venue\":\"Prudential Center\"}"
 ```
 
-**Plan a trip using natural language:**
+Example natural-language request:
 
 ```bash
-curl -X POST http://localhost:8000/api/trips/plan \
+curl -X POST http://127.0.0.1:8000/trips/plan \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
-  -d '{
-    "sentence": "I want to fly from Mumbai to Delhi on 2026-07-15 for a concert at the Dome."
-  }'
+  -d "{\"sentence\":\"Plan a trip from MIA to EWR on 2026-07-15 for a concert at Prudential Center\"}"
 ```
 
-**Health check:**
+## Error Handling
+
+| Layer | Behavior |
+|---|---|
+| Pydantic | Returns `422` validation errors for invalid request shape. |
+| Missing parsed fields | Returns `400` with a message asking for required fields. |
+| Auth | Returns `401` for invalid credentials/tokens and `403` for inactive/unauthorized access. |
+| Rate limits | Returns `429` when Redis counters indicate lockout or quota exhaustion. |
+| Graph failure | Marks trip `failed`, records failure, and returns a classified user-facing message. |
+| Agent failure | Appends an error and preserves available state so downstream agents can continue. |
+| Tool failure | Tool wrappers return normalized error dictionaries instead of raising where possible. |
+| Cache failure | Redis cache helpers log warnings and fail open. |
+
+## Performance Optimizations
+
+- LangGraph `Send()` fan-out allows enabled specialist agents to run concurrently.
+- Redis caches expensive agent outputs with domain-specific TTLs.
+- Tavily client is cached and blocking Tavily calls run in an executor.
+- Graph construction is lazy and cached per process in route/service modules.
+- Report formatting is deterministic and does not require an additional LLM call.
+- Tool responses are trimmed in several wrappers to reduce state size.
+
+## Security
+
+| Control | Implementation |
+|---|---|
+| Password storage | bcrypt via `passlib`. |
+| Access tokens | HS256 JWT with `type=access` and expiry. |
+| Refresh tokens | HS256 JWT with `type=refresh`; SHA-256 hash stored in DB with revocation timestamp. |
+| Protected routes | `/trips/*` except `/trips/health` require current active user. |
+| Authorization | Trip UUID lookups verify `trip.user_id == current_user.id`. |
+| Input validation | Pydantic request schemas and explicit parsed-field validation. |
+| CORS | Allows `http://localhost:5173` and `http://localhost:8080` with credentials. |
+
+## Deployment Notes
+
+No Dockerfile, compose file, frontend build, CI workflow, or hosted deployment manifests are currently included. A production deployment should provide:
+
+- ASGI server process for `backend.api.app:app`
+- Managed PostgreSQL
+- Managed Redis or Redis disabled with `REDIS_ENABLED=false`
+- Secure `SECRET_KEY`
+- Real API keys for Groq and Tavily
+- Network access to configured MCP servers
+- CORS origins adjusted in `backend/api/app.py`
+- Migration strategy using Alembic instead of relying only on startup `create_tables()`
+
+## Development Workflow
+
+Run tests:
 
 ```bash
-curl http://localhost:8000/api/trips/health
+python -m unittest
 ```
 
-**Get trip state by thread ID:**
+or:
 
 ```bash
-curl http://localhost:8000/api/trips/api_trip_a1b2c3d4e5f6
+python -m pytest tests/
 ```
 
-**Resume a trip from checkpoint:**
+Useful checks:
 
 ```bash
-curl -X POST http://localhost:8000/api/trips/api_trip_a1b2c3d4e5f6/resume
+python -m py_compile backend/api/app.py graph/trip_graph.py services/trip_planner_service.py
+git status --short
 ```
 
-Open `http://localhost:8000/docs` in a browser for the interactive Swagger UI.
+When contributing, keep changes scoped to the relevant layer, update tests for behavior changes, and avoid committing `.env`, generated cache files, local databases, or virtual environments.
 
-Save a generated report to the configured outputs directory:
+## Known Limitations
 
-```python
-from services.trip_planner_service import plan_trip
-from utils.file_utils import save_text_output
+These are verified from the repository state:
 
-result = plan_trip(
-    "Plan a trip from Miami to New York on 2026-08-15 visiting Madison Square Garden"
-)
+| Limitation | Evidence |
+|---|---|
+| No frontend pages are present | No `package.json`, React/Vite source, or frontend directory exists in the tracked file list. |
+| No Docker/deployment config is present | No Dockerfile, compose file, or deployment manifests are present. |
+| Health check is shallow | `/trips/health` always returns `{"status":"healthy"}` and does not check PostgreSQL, Redis, or MCP servers. |
+| CORS origins are hardcoded | `backend/api/app.py` allows only localhost origins. |
+| OAuth env vars exist but OAuth routes are not wired | `.env.example` includes Google/GitHub vars; active auth routes are register/login/refresh/me/logout. |
+| Access tokens are not revoked on logout | Logout revokes refresh tokens; access tokens remain valid until expiry. |
+| Refresh tokens are reused on refresh | `/auth/refresh` returns the same refresh token with a new access token. |
+| Redis rate-limit increment and expiry are separate operations | `_incr_with_ttl()` calls `incr()` then `expire()` on first creation. |
+| SQLite checkpointing may constrain concurrent writes | LangGraph checkpoints are stored through a SQLite checkpointer. |
+| `create_tables()` runs on startup | Startup creates metadata tables even though Alembic migrations exist. |
+| Several graph singletons exist | `_GRAPH_INSTANCE` appears in route and service modules. |
 
-path = save_text_output(result.get("final_report", ""))
-print(path)
-```
+## Roadmap
 
-# Current Limitations
+Roadmap items are derived from existing architecture and limitations:
 
-- Flight results depend on the availability and response format of the Kiwi MCP server.
-- Hotel results depend on Agentorist MCP data; hotel pricing is limited to returned price categories unless the provider returns more detail.
-- Weather forecast range is clamped to 1-16 days by `tools/weather_tools.py`.
-- Air quality lookup failures do not fail the full weather request, but they are preserved in the weather result.
-- Destination research requires `TAVILY_API_KEY`; missing or failing Tavily calls return empty results with an error.
-- Agent summaries depend on Groq LLM responses and may fail if `GROQ_API_KEY` is missing or the provider is unavailable.
-- Tests mock graph and parser behavior; they do not perform live MCP, Tavily, or Groq integration tests.
-- The conversation service (`conversation_agent`) is fully deterministic and does not use an LLM.
+- Add production deployment assets once the target runtime is chosen.
+- Move CORS origins into environment-driven settings.
+- Upgrade `/trips/health` to check PostgreSQL, Redis, and key external providers.
+- Rotate refresh tokens on `/auth/refresh`.
+- Add access-token revocation or shorter-lived access-token strategy if logout enforcement is required.
+- Make Redis rate-limit counter updates atomic.
+- Consolidate duplicate graph singleton creation.
+- Evaluate PostgreSQL-backed LangGraph checkpointing for higher concurrency.
+- Add API integration tests with FastAPI `TestClient` or async HTTP client.
+- Add frontend or document the expected API client contract if a UI is added later.
 
-# Development Notes
+## Acknowledgements
 
-LangGraph state is defined as a `TypedDict` in `state/trip_state.py`. Each agent receives the current state dictionary, copies it, adds or updates its own fields, appends errors when needed, and returns the updated state.
+Trippin' is built on FastAPI, LangGraph, LangChain, Groq, Tavily, Model Context Protocol, SQLAlchemy, Alembic, PostgreSQL, Redis, Pydantic, python-jose, passlib, and Uvicorn.
 
-Checkpointing is configured by `memory/sqlite_checkpoint.py`. By default, checkpoints are stored at `memory/trip_planner.db`, and service functions pass a generated `thread_id` through LangGraph's `configurable` configuration.
+## License
 
-Agent orchestration is implemented in `graph/trip_graph.py` with the following edge order:
+No repository-level license file is currently present. The FastAPI OpenAPI metadata declares MIT, but a `LICENSE` file should be added before treating the project as formally licensed for open-source distribution.
 
-```text
-START -> coordinator_agent -> supervisor_agent -> [conditional routing
-        based on execution_plan] -> flight_agent | hotel_agent |
-        weather_agent | search_agent | local_agent -> ... ->
-        itinerary_agent -> END
-```
+## Contact
 
-Error handling is local to each agent. Tool or LLM failures are caught, a status such as `failed` or `degraded` is written into state, and a message is appended to the `errors` list. The workflow generally continues unless required validation fails in the supervisor.
-
-The final report formatter (`report_formatter_agent`) does not call an LLM. It is invoked internally by the `itinerary_agent` graph node and assembles sections directly from the state, preserving specialist agent notes verbatim.
-
-# Future Improvements
-
-- Add live integration tests for MCP services and Tavily behind optional environment flags.
-- Add structured schemas for external provider responses before LLM summarization.
-- Add a license file.
-- Add pinned dependency versions for repeatable installs.
-
-# License
-
-No license file is currently included in this repository. Add a license before distributing or accepting external contributions.
+- Repository metadata in `backend/api/app.py`: `https://github.com/anomalyco/Travel_Agentic_System`
+- Use GitHub Issues and Discussions in the repository for bugs, questions, and contributor coordination.
